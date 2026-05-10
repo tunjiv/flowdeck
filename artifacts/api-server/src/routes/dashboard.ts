@@ -128,4 +128,119 @@ router.get("/dashboard/upcoming", requireAuth, async (req, res): Promise<void> =
   res.json(upcoming);
 });
 
+router.get("/dashboard/weekly-review", requireAuth, async (req, res): Promise<void> => {
+  const userId = getUserId(req);
+  const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // Build the 7-day window ending today
+  const todayDate = new Date();
+  const dates: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(todayDate);
+    d.setDate(d.getDate() - i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+  const weekStart = dates[0];
+  const weekEnd = dates[6];
+
+  // Fetch all data for the window in parallel
+  const [allTasks, allHabits, allHabitLogs, allMoodLogs, allFocusSessions, allGoals] = await Promise.all([
+    db.select().from(tasksTable).where(eq(tasksTable.userId, userId)),
+    db.select().from(habitsTable).where(and(eq(habitsTable.userId, userId), eq(habitsTable.isArchived, false))),
+    db.select().from(habitLogsTable).where(eq(habitLogsTable.userId, userId)),
+    db.select().from(moodLogsTable).where(eq(moodLogsTable.userId, userId)),
+    db.select().from(focusSessionsTable).where(eq(focusSessionsTable.userId, userId)),
+    db.select().from(goalsTable).where(eq(goalsTable.userId, userId)),
+  ]);
+
+  const habitsTotal = allHabits.length;
+
+  // Per-day breakdown
+  const days = dates.map((dateStr) => {
+    const d = new Date(dateStr + "T12:00:00");
+    const day = DAY_LABELS[d.getDay()];
+
+    const tasksCompleted = allTasks.filter(
+      t => t.completedAt && t.completedAt.toISOString().split("T")[0] === dateStr
+    ).length;
+
+    const habitsCompleted = allHabitLogs.filter(l => l.logDate === dateStr).length;
+
+    const focusMinutes = allFocusSessions
+      .filter(s => s.sessionDate === dateStr && s.sessionType === "pomodoro")
+      .reduce((sum, s) => sum + s.durationMinutes, 0);
+
+    const moodEntry = allMoodLogs.find(m => m.logDate === dateStr);
+
+    return {
+      date: dateStr,
+      day,
+      mood: moodEntry?.mood ?? null,
+      focusMinutes,
+      tasksCompleted,
+      habitsCompleted,
+      habitsTotal,
+    };
+  });
+
+  // Aggregate totals
+  const totalFocusMinutes = days.reduce((s, d) => s + d.focusMinutes, 0);
+  const tasksCompletedCount = days.reduce((s, d) => s + d.tasksCompleted, 0);
+
+  const moodValues = days.map(d => d.mood).filter((m): m is number => m !== null);
+  const avgMood = moodValues.length > 0
+    ? Math.round((moodValues.reduce((s, m) => s + m, 0) / moodValues.length) * 10) / 10
+    : null;
+
+  const totalPossibleHabitSlots = habitsTotal * 7;
+  const totalHabitsCompleted = days.reduce((s, d) => s + d.habitsCompleted, 0);
+  const habitCompletionRate = totalPossibleHabitSlots > 0
+    ? Math.round((totalHabitsCompleted / totalPossibleHabitSlots) * 100)
+    : 0;
+
+  // Goals summary
+  const goalsSummary = {
+    total: allGoals.length,
+    completed: allGoals.filter(g => g.status === "completed").length,
+    inProgress: allGoals.filter(g => g.status === "active").length,
+  };
+
+  // Top habit by streak this week
+  let topHabit: { name: string; streak: number } | null = null;
+  for (const habit of allHabits) {
+    const logDates = new Set(allHabitLogs.filter(l => l.habitId === habit.id).map(l => l.logDate));
+    let streak = 0;
+    const check = new Date(todayDate);
+    while (true) {
+      const ds = check.toISOString().split("T")[0];
+      if (logDates.has(ds)) { streak++; check.setDate(check.getDate() - 1); }
+      else break;
+    }
+    if (!topHabit || streak > topHabit.streak) {
+      topHabit = { name: habit.name, streak };
+    }
+  }
+  if (topHabit?.streak === 0) topHabit = null;
+
+  // Weekly score: weighted mix of habit rate, focus presence, task output, mood
+  const focusScore = Math.min(totalFocusMinutes / (7 * 25), 1); // 1 pomodoro/day = 100%
+  const moodScore = avgMood !== null ? (avgMood - 1) / 4 : 0;
+  const weeklyScore = Math.round(
+    (habitCompletionRate * 0.4 + focusScore * 100 * 0.3 + moodScore * 100 * 0.3)
+  );
+
+  res.json({
+    weekStart,
+    weekEnd,
+    days,
+    habitCompletionRate,
+    totalFocusMinutes,
+    tasksCompletedCount,
+    avgMood,
+    activeGoals: goalsSummary,
+    topHabit,
+    weeklyScore,
+  });
+});
+
 export default router;

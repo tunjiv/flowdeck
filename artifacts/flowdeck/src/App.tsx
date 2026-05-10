@@ -18,6 +18,7 @@ import HabitDetail from "@/pages/HabitDetail";
 import Categories from "@/pages/Categories";
 import Focus from "@/pages/Focus";
 import Settings from "@/pages/Settings";
+import WeeklyReview from "@/pages/WeeklyReview";
 import NotFound from "@/pages/not-found";
 
 const clerkPubKey = publishableKeyFromHost(
@@ -223,6 +224,7 @@ function AppRouter() {
           <Route path="/habits" component={() => <ProtectedRoute component={Habits} />} />
           <Route path="/categories" component={() => <ProtectedRoute component={Categories} />} />
           <Route path="/focus" component={() => <ProtectedRoute component={Focus} />} />
+          <Route path="/weekly-review" component={() => <ProtectedRoute component={WeeklyReview} />} />
           <Route path="/settings" component={() => <ProtectedRoute component={Settings} />} />
           <Route component={NotFound} />
         </Switch>

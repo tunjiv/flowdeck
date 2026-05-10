@@ -839,6 +839,19 @@ paths:
                 items:
                   $ref: "#/components/schemas/Task"
 
+  /dashboard/weekly-review:
+    get:
+      operationId: getWeeklyReview
+      tags: [dashboard]
+      summary: Get a full 7-day review (mood, focus, habits, tasks, goals)
+      responses:
+        "200":
+          description: Weekly review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyReview"
+
 components:
   schemas:
     HealthStatus:
@@ -1353,6 +1366,75 @@ components:
         day:
           type: string
         count:
+          type: integer
+
+    WeeklyReviewDay:
+      type: object
+      required: [date, day, focusMinutes, tasksCompleted, habitsCompleted, habitsTotal]
+      properties:
+        date:
+          type: string
+        day:
+          type: string
+        mood:
+          type: ["integer", "null"]
+        focusMinutes:
+          type: integer
+        tasksCompleted:
+          type: integer
+        habitsCompleted:
+          type: integer
+        habitsTotal:
+          type: integer
+
+    GoalsSummary:
+      type: object
+      required: [total, completed, inProgress]
+      properties:
+        total:
+          type: integer
+        completed:
+          type: integer
+        inProgress:
+          type: integer
+
+    TopHabit:
+      type: object
+      required: [name, streak]
+      properties:
+        name:
+          type: string
+        streak:
+          type: integer
+
+    WeeklyReview:
+      type: object
+      required: [weekStart, weekEnd, days, habitCompletionRate, totalFocusMinutes, tasksCompletedCount, activeGoals, weeklyScore]
+      properties:
+        weekStart:
+          type: string
+        weekEnd:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyReviewDay"
+        habitCompletionRate:
+          type: number
+        totalFocusMinutes:
+          type: integer
+        tasksCompletedCount:
+          type: integer
+        avgMood:
+          type: ["number", "null"]
+        activeGoals:
+          $ref: "#/components/schemas/GoalsSummary"
+        topHabit:
+          nullable: true
+          oneOf:
+            - $ref: "#/components/schemas/TopHabit"
+            - type: "null"
+        weeklyScore:
           type: integer
 
     ProductivityScore:

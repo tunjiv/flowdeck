@@ -8,6 +8,7 @@ import {
   Repeat,
   Tag,
   Timer,
+  BarChart2,
   Settings,
   Menu,
   X,
@@ -32,6 +33,7 @@ const navItems = [
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/habits", label: "Habits", icon: Repeat },
   { href: "/focus", label: "Focus", icon: Timer },
+  { href: "/weekly-review", label: "Weekly Review", icon: BarChart2 },
   { href: "/categories", label: "Categories", icon: Tag },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

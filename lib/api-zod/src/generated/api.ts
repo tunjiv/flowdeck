@@ -729,3 +729,41 @@ export const GetUpcomingTasksResponseItem = zod.object({
   updatedAt: zod.string().optional(),
 });
 export const GetUpcomingTasksResponse = zod.array(GetUpcomingTasksResponseItem);
+
+/**
+ * @summary Get a full 7-day review (mood, focus, habits, tasks, goals)
+ */
+export const GetWeeklyReviewResponse = zod.object({
+  weekStart: zod.string(),
+  weekEnd: zod.string(),
+  days: zod.array(
+    zod.object({
+      date: zod.string(),
+      day: zod.string(),
+      mood: zod.number().nullish(),
+      focusMinutes: zod.number(),
+      tasksCompleted: zod.number(),
+      habitsCompleted: zod.number(),
+      habitsTotal: zod.number(),
+    }),
+  ),
+  habitCompletionRate: zod.number(),
+  totalFocusMinutes: zod.number(),
+  tasksCompletedCount: zod.number(),
+  avgMood: zod.number().nullish(),
+  activeGoals: zod.object({
+    total: zod.number(),
+    completed: zod.number(),
+    inProgress: zod.number(),
+  }),
+  topHabit: zod
+    .union([
+      zod.object({
+        name: zod.string(),
+        streak: zod.number(),
+      }),
+      zod.null(),
+    ])
+    .nullish(),
+  weeklyScore: zod.number(),
+});

@@ -463,6 +463,42 @@ export interface DayCount {
   count: number;
 }
 
+export interface WeeklyReviewDay {
+  date: string;
+  day: string;
+  /** @nullable */
+  mood?: number | null;
+  focusMinutes: number;
+  tasksCompleted: number;
+  habitsCompleted: number;
+  habitsTotal: number;
+}
+
+export interface GoalsSummary {
+  total: number;
+  completed: number;
+  inProgress: number;
+}
+
+export interface TopHabit {
+  name: string;
+  streak: number;
+}
+
+export interface WeeklyReview {
+  weekStart: string;
+  weekEnd: string;
+  days: WeeklyReviewDay[];
+  habitCompletionRate: number;
+  totalFocusMinutes: number;
+  tasksCompletedCount: number;
+  /** @nullable */
+  avgMood?: number | null;
+  activeGoals: GoalsSummary;
+  topHabit?: TopHabit | null;
+  weeklyScore: number;
+}
+
 export interface ProductivityScore {
   score: number;
   tasksCompletionRate: number;
