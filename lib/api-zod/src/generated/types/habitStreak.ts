@@ -12,4 +12,7 @@ export interface HabitStreak {
   longestStreak: number;
   completionRateWeek?: number;
   completionRateMonth?: number;
+  graceUsedThisWeek: number;
+  graceTotal: number;
+  isStreakProtected?: boolean;
 }

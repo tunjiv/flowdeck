@@ -4,7 +4,7 @@ import {
   useGetHabitStreaks,
   useGetHabitHeatmap,
 } from "@workspace/api-client-react";
-import { ArrowLeft, Flame, TrendingUp, Calendar } from "lucide-react";
+import { ArrowLeft, Flame, TrendingUp, Calendar, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -77,6 +77,44 @@ export default function HabitDetail() {
         </div>
       </div>
 
+      {/* Grace days banner */}
+      {streaks && (streaks.graceTotal ?? 0) > 0 && (
+        <div className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${
+          streaks.isStreakProtected
+            ? "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800"
+            : "bg-primary/5 border-primary/20"
+        }`}>
+          {streaks.isStreakProtected
+            ? <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            : <ShieldCheck className="w-4 h-4 text-primary flex-shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-medium ${streaks.isStreakProtected ? "text-amber-800 dark:text-amber-300" : "text-foreground"}`}>
+              {streaks.isStreakProtected
+                ? `Streak protected — ${streaks.graceUsedThisWeek}/${streaks.graceTotal} grace day${streaks.graceTotal !== 1 ? "s" : ""} used this week`
+                : `Grace freeze active — ${streaks.graceTotal} missed day${streaks.graceTotal !== 1 ? "s" : ""} allowed per week`}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {streaks.isStreakProtected
+                ? "A grace day is shielding your streak right now"
+                : `${streaks.graceTotal - (streaks.graceUsedThisWeek ?? 0)} grace day${(streaks.graceTotal - (streaks.graceUsedThisWeek ?? 0)) !== 1 ? "s" : ""} remaining this week`}
+            </p>
+          </div>
+          {/* Grace pip indicators */}
+          <div className="flex gap-1 flex-shrink-0">
+            {Array.from({ length: streaks.graceTotal }).map((_, i) => (
+              <div
+                key={i}
+                className={`w-2.5 h-2.5 rounded-full ${
+                  i < (streaks.graceUsedThisWeek ?? 0)
+                    ? "bg-amber-500"
+                    : "bg-primary/30"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Streaks */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-border">
@@ -86,7 +124,9 @@ export default function HabitDetail() {
               <span className="text-xs text-muted-foreground">Current streak</span>
             </div>
             <p className="text-2xl font-bold text-foreground">{streaks?.currentStreak ?? 0}</p>
-            <p className="text-xs text-muted-foreground">days</p>
+            <p className="text-xs text-muted-foreground">
+              {streaks?.isStreakProtected ? "🛡️ protected" : "days"}
+            </p>
           </CardContent>
         </Card>
         <Card className="border-border">

@@ -13,6 +13,7 @@ export const habitsTable = pgTable("habits", {
   icon: text("icon"),
   color: text("color"),
   motivationNote: text("motivation_note"),
+  graceDaysPerWeek: integer("grace_days_per_week").notNull().default(0),
   isArchived: boolean("is_archived").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

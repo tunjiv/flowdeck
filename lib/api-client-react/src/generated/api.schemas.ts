@@ -285,6 +285,11 @@ export interface Habit {
   color?: string | null;
   /** @nullable */
   motivationNote?: string | null;
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  graceDaysPerWeek?: number;
   isArchived?: boolean;
   createdAt: string;
 }
@@ -310,6 +315,11 @@ export interface HabitInput {
   icon?: string;
   color?: string;
   motivationNote?: string;
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  graceDaysPerWeek?: number;
 }
 
 export type HabitUpdateFrequency =
@@ -333,6 +343,11 @@ export interface HabitUpdate {
   icon?: string;
   color?: string;
   motivationNote?: string;
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  graceDaysPerWeek?: number;
   isArchived?: boolean;
 }
 
@@ -342,6 +357,9 @@ export interface HabitStreak {
   longestStreak: number;
   completionRateWeek?: number;
   completionRateMonth?: number;
+  graceUsedThisWeek: number;
+  graceTotal: number;
+  isStreakProtected?: boolean;
 }
 
 export interface HeatmapEntry {

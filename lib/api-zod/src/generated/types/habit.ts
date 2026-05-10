@@ -24,6 +24,11 @@ export interface Habit {
   color?: string | null;
   /** @nullable */
   motivationNote?: string | null;
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  graceDaysPerWeek?: number;
   isArchived?: boolean;
   createdAt: string;
 }

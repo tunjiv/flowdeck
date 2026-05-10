@@ -405,6 +405,9 @@ export const CompleteTaskResponse = zod.object({
 /**
  * @summary List all habits for the authenticated user
  */
+export const listHabitsResponseGraceDaysPerWeekMin = 0;
+export const listHabitsResponseGraceDaysPerWeekMax = 6;
+
 export const ListHabitsResponseItem = zod.object({
   id: zod.number(),
   userId: zod.string(),
@@ -416,6 +419,11 @@ export const ListHabitsResponseItem = zod.object({
   icon: zod.string().nullish(),
   color: zod.string().nullish(),
   motivationNote: zod.string().nullish(),
+  graceDaysPerWeek: zod
+    .number()
+    .min(listHabitsResponseGraceDaysPerWeekMin)
+    .max(listHabitsResponseGraceDaysPerWeekMax)
+    .optional(),
   isArchived: zod.boolean().optional(),
   createdAt: zod.string(),
 });
@@ -424,6 +432,9 @@ export const ListHabitsResponse = zod.array(ListHabitsResponseItem);
 /**
  * @summary Create a new habit
  */
+
+export const createHabitBodyGraceDaysPerWeekMin = 0;
+export const createHabitBodyGraceDaysPerWeekMax = 6;
 
 export const CreateHabitBody = zod.object({
   name: zod.string().min(1),
@@ -434,6 +445,11 @@ export const CreateHabitBody = zod.object({
   icon: zod.string().optional(),
   color: zod.string().optional(),
   motivationNote: zod.string().optional(),
+  graceDaysPerWeek: zod
+    .number()
+    .min(createHabitBodyGraceDaysPerWeekMin)
+    .max(createHabitBodyGraceDaysPerWeekMax)
+    .optional(),
 });
 
 /**
@@ -442,6 +458,9 @@ export const CreateHabitBody = zod.object({
 export const GetHabitParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const getHabitResponseGraceDaysPerWeekMin = 0;
+export const getHabitResponseGraceDaysPerWeekMax = 6;
 
 export const GetHabitResponse = zod.object({
   id: zod.number(),
@@ -454,6 +473,11 @@ export const GetHabitResponse = zod.object({
   icon: zod.string().nullish(),
   color: zod.string().nullish(),
   motivationNote: zod.string().nullish(),
+  graceDaysPerWeek: zod
+    .number()
+    .min(getHabitResponseGraceDaysPerWeekMin)
+    .max(getHabitResponseGraceDaysPerWeekMax)
+    .optional(),
   isArchived: zod.boolean().optional(),
   createdAt: zod.string(),
 });
@@ -464,6 +488,9 @@ export const GetHabitResponse = zod.object({
 export const UpdateHabitParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const updateHabitBodyGraceDaysPerWeekMin = 0;
+export const updateHabitBodyGraceDaysPerWeekMax = 6;
 
 export const UpdateHabitBody = zod.object({
   name: zod.string().min(1).optional(),
@@ -476,8 +503,16 @@ export const UpdateHabitBody = zod.object({
   icon: zod.string().optional(),
   color: zod.string().optional(),
   motivationNote: zod.string().optional(),
+  graceDaysPerWeek: zod
+    .number()
+    .min(updateHabitBodyGraceDaysPerWeekMin)
+    .max(updateHabitBodyGraceDaysPerWeekMax)
+    .optional(),
   isArchived: zod.boolean().optional(),
 });
+
+export const updateHabitResponseGraceDaysPerWeekMin = 0;
+export const updateHabitResponseGraceDaysPerWeekMax = 6;
 
 export const UpdateHabitResponse = zod.object({
   id: zod.number(),
@@ -490,6 +525,11 @@ export const UpdateHabitResponse = zod.object({
   icon: zod.string().nullish(),
   color: zod.string().nullish(),
   motivationNote: zod.string().nullish(),
+  graceDaysPerWeek: zod
+    .number()
+    .min(updateHabitResponseGraceDaysPerWeekMin)
+    .max(updateHabitResponseGraceDaysPerWeekMax)
+    .optional(),
   isArchived: zod.boolean().optional(),
   createdAt: zod.string(),
 });
@@ -514,6 +554,9 @@ export const GetHabitStreaksResponse = zod.object({
   longestStreak: zod.number(),
   completionRateWeek: zod.number().optional(),
   completionRateMonth: zod.number().optional(),
+  graceUsedThisWeek: zod.number(),
+  graceTotal: zod.number(),
+  isStreakProtected: zod.boolean().optional(),
 });
 
 /**

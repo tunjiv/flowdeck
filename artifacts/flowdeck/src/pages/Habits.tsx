@@ -14,7 +14,7 @@ import {
   getGetDashboardSummaryQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Repeat, CheckCircle2, Circle, Trash2, MoreHorizontal, ChevronRight, Flame } from "lucide-react";
+import { Plus, Repeat, CheckCircle2, Circle, Trash2, MoreHorizontal, ChevronRight, Flame, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,7 +40,7 @@ const COLORS = [
 function HabitForm({ open, onClose, initial }: {
   open: boolean;
   onClose: () => void;
-  initial?: { id: number; name: string; frequency: string; color?: string | null; icon?: string | null; categoryId?: number | null; motivationNote?: string | null; };
+  initial?: { id: number; name: string; frequency: string; color?: string | null; icon?: string | null; categoryId?: number | null; motivationNote?: string | null; graceDaysPerWeek?: number | null; };
 }) {
   const qc = useQueryClient();
   const { data: categories } = useListCategories();
@@ -52,15 +52,17 @@ function HabitForm({ open, onClose, initial }: {
   const [color, setColor] = useState(initial?.color ?? "#14b8a6");
   const [categoryId, setCategoryId] = useState(String(initial?.categoryId ?? ""));
   const [motivationNote, setMotivationNote] = useState(initial?.motivationNote ?? "");
+  const [graceDaysPerWeek, setGraceDaysPerWeek] = useState(String(initial?.graceDaysPerWeek ?? "0"));
 
   const handleSubmit = () => {
     if (!name.trim()) { toast.error("Name is required"); return; }
-    const payload: any = {
+    const payload = {
       name: name.trim(),
-      frequency,
+      frequency: frequency as "daily" | "weekdays" | "weekly" | "monthly" | "custom",
       color,
       categoryId: categoryId ? Number(categoryId) : undefined,
       motivationNote: motivationNote.trim() || undefined,
+      graceDaysPerWeek: Number(graceDaysPerWeek),
     };
     if (initial) {
       update.mutate({ id: initial.id, data: payload }, {
@@ -71,7 +73,7 @@ function HabitForm({ open, onClose, initial }: {
         },
       });
     } else {
-      create.mutate({ data: { ...payload, userId: "" } }, {
+      create.mutate({ data: payload }, {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getListHabitsQueryKey() });
           toast.success("Habit created");
@@ -125,6 +127,21 @@ function HabitForm({ open, onClose, initial }: {
                 />
               ))}
             </div>
+          </div>
+          <div>
+            <Label>Grace days per week</Label>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-1.5">
+              Missed days that won't break your streak (0 = strict mode).
+            </p>
+            <Select value={graceDaysPerWeek} onValueChange={setGraceDaysPerWeek}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">0 — strict, no skips</SelectItem>
+                <SelectItem value="1">1 — 1 skip / week</SelectItem>
+                <SelectItem value="2">2 — 2 skips / week</SelectItem>
+                <SelectItem value="3">3 — 3 skips / week</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label htmlFor="motivation">Why this habit?</Label>
@@ -254,9 +271,14 @@ export default function Habits() {
                   {habit.name[0].toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                    {habit.name}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className={`text-sm font-medium ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                      {habit.name}
+                    </p>
+                    {(habit.graceDaysPerWeek ?? 0) > 0 && (
+                      <ShieldCheck className="w-3.5 h-3.5 text-primary/60 flex-shrink-0" aria-label={`${habit.graceDaysPerWeek} grace day${habit.graceDaysPerWeek !== 1 ? "s" : ""}/week`} />
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground capitalize">{habit.frequency}</p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">

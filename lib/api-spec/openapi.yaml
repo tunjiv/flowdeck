@@ -1132,6 +1132,10 @@ components:
           type: ["string", "null"]
         motivationNote:
           type: ["string", "null"]
+        graceDaysPerWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
         isArchived:
           type: boolean
         createdAt:
@@ -1159,6 +1163,10 @@ components:
           type: string
         motivationNote:
           type: string
+        graceDaysPerWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
 
     HabitUpdate:
       type: object
@@ -1181,12 +1189,16 @@ components:
           type: string
         motivationNote:
           type: string
+        graceDaysPerWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
         isArchived:
           type: boolean
 
     HabitStreak:
       type: object
-      required: [habitId, currentStreak, longestStreak]
+      required: [habitId, currentStreak, longestStreak, graceUsedThisWeek, graceTotal]
       properties:
         habitId:
           type: integer
@@ -1198,6 +1210,12 @@ components:
           type: number
         completionRateMonth:
           type: number
+        graceUsedThisWeek:
+          type: integer
+        graceTotal:
+          type: integer
+        isStreakProtected:
+          type: boolean
 
     HeatmapEntry:
       type: object

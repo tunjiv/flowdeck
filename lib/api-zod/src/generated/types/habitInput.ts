@@ -17,4 +17,9 @@ export interface HabitInput {
   icon?: string;
   color?: string;
   motivationNote?: string;
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  graceDaysPerWeek?: number;
 }

@@ -124,47 +124,79 @@ router.get("/habits/:id/streaks", requireAuth, async (req, res): Promise<void> =
     .orderBy(habitLogsTable.logDate);
 
   const logDates = new Set(logs.map(l => l.logDate));
+  const grace = habit.graceDaysPerWeek ?? 0;
 
-  // Calculate current streak
-  let currentStreak = 0;
-  let longestStreak = 0;
-  let streak = 0;
   const today = new Date();
-
-  // Build sorted dates array
+  const todayStr = today.toISOString().split("T")[0];
   const sortedDates = Array.from(logDates).sort();
 
-  // Calculate longest streak
-  for (let i = 0; i < sortedDates.length; i++) {
-    if (i === 0) {
-      streak = 1;
+  // ── Current streak with grace days ──────────────────────────────
+  // Walk backwards from today; allow up to `grace` consecutive missed days
+  // without breaking the streak. Missed days don't count toward streak length.
+  let currentStreak = 0;
+  let consecutiveMisses = 0;
+  let graceConsumed = 0;
+  const checkDate = new Date(today);
+
+  while (true) {
+    const ds = checkDate.toISOString().split("T")[0];
+    if (logDates.has(ds)) {
+      currentStreak++;
+      consecutiveMisses = 0;
     } else {
-      const prev = new Date(sortedDates[i - 1]);
-      const curr = new Date(sortedDates[i]);
-      const diff = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
-      if (diff === 1) {
-        streak++;
+      consecutiveMisses++;
+      if (grace > 0 && graceConsumed < grace) {
+        graceConsumed++;
+        // grace day bridges the gap — don't add to streak count
       } else {
-        streak = 1;
+        break;
       }
     }
-    longestStreak = Math.max(longestStreak, streak);
+    checkDate.setDate(checkDate.getDate() - 1);
   }
 
-  // Calculate current streak (backwards from today)
-  const todayStr = today.toISOString().split("T")[0];
-  let checkDate = new Date(today);
-  while (true) {
-    const dateStr = checkDate.toISOString().split("T")[0];
-    if (logDates.has(dateStr)) {
-      currentStreak++;
-      checkDate.setDate(checkDate.getDate() - 1);
-    } else {
-      break;
+  // ── Longest streak (with same grace logic) ──────────────────────
+  let longestStreak = 0;
+  {
+    let run = 0;
+    let misses = 0;
+    const allDates: string[] = [];
+    const earliest = sortedDates[0] ? new Date(sortedDates[0]) : null;
+    if (earliest) {
+      const end = new Date(today);
+      for (const d = new Date(earliest); d <= end; d.setDate(d.getDate() + 1)) {
+        allDates.push(d.toISOString().split("T")[0]);
+      }
     }
+    for (const ds of allDates) {
+      if (logDates.has(ds)) {
+        run++;
+        misses = 0;
+      } else {
+        misses++;
+        if (grace > 0 && misses <= grace) {
+          // grace bridges the gap, run continues (don't increment run)
+        } else {
+          longestStreak = Math.max(longestStreak, run);
+          run = 0;
+          misses = 0;
+        }
+      }
+    }
+    longestStreak = Math.max(longestStreak, run);
   }
 
-  // Calculate completion rates
+  // ── Grace used this week (Mon–Sun window ending today) ──────────
+  const weekWindow: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    weekWindow.push(d.toISOString().split("T")[0]);
+  }
+  const graceUsedThisWeek = weekWindow.filter(d => !logDates.has(d) && d <= todayStr).length;
+  const isStreakProtected = grace > 0 && graceUsedThisWeek > 0 && graceUsedThisWeek <= grace && currentStreak > 0;
+
+  // ── Completion rates ─────────────────────────────────────────────
   const weekAgo = new Date(today);
   weekAgo.setDate(weekAgo.getDate() - 7);
   const monthAgo = new Date(today);
@@ -179,6 +211,9 @@ router.get("/habits/:id/streaks", requireAuth, async (req, res): Promise<void> =
     longestStreak,
     completionRateWeek: Math.round((weekLogs.length / 7) * 100) / 100,
     completionRateMonth: Math.round((monthLogs.length / 30) * 100) / 100,
+    graceUsedThisWeek: Math.min(graceUsedThisWeek, grace),
+    graceTotal: grace,
+    isStreakProtected,
   });
 });
 
