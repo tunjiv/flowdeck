@@ -3,20 +3,38 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: FlowDeck productivity app API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: categories
+    description: Goal categories
+  - name: goals
+    description: Goals management
+  - name: tasks
+    description: To-do tasks
+  - name: habits
+    description: Habit tracking
+  - name: habitLogs
+    description: Habit completion logs
+  - name: taskLogs
+    description: Pomodoro / focus session logs
+  - name: moodLogs
+    description: Daily mood check-ins
+  - name: dashboard
+    description: Dashboard summary endpoints
+  - name: tags
+    description: User-defined tags
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +42,803 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── CATEGORIES ────────────────────────────────────────────────
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: List all categories for the authenticated user
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+    post:
+      operationId: createCategory
+      tags: [categories]
+      summary: Create a new category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+
+  /categories/{id}:
+    get:
+      operationId: getCategory
+      tags: [categories]
+      summary: Get a category by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateCategory
+      tags: [categories]
+      summary: Update a category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteCategory
+      tags: [categories]
+      summary: Delete a category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  # ── GOALS ─────────────────────────────────────────────────────
+  /goals:
+    get:
+      operationId: listGoals
+      tags: [goals]
+      summary: List goals for the authenticated user
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of goals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Goal"
+    post:
+      operationId: createGoal
+      tags: [goals]
+      summary: Create a new goal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+
+  /goals/{id}:
+    get:
+      operationId: getGoal
+      tags: [goals]
+      summary: Get a goal by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateGoal
+      tags: [goals]
+      summary: Update a goal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteGoal
+      tags: [goals]
+      summary: Delete a goal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /goals/{id}/progress:
+    get:
+      operationId: getGoalProgress
+      tags: [goals]
+      summary: Get progress detail for a goal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Goal progress detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalProgress"
+        "404":
+          description: Not found
+
+  /goals/{id}/complete:
+    post:
+      operationId: completeGoal
+      tags: [goals]
+      summary: Mark a goal as complete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+        "404":
+          description: Not found
+
+  # ── TASKS ─────────────────────────────────────────────────────
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: List tasks for the authenticated user
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: goalId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: dueDate
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: priority
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Create a new task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+
+  /tasks/today:
+    get:
+      operationId: getTodaysTasks
+      tags: [tasks]
+      summary: Get today's task checklist sorted by priority
+      responses:
+        "200":
+          description: Today's tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+
+  /tasks/{id}:
+    get:
+      operationId: getTask
+      tags: [tasks]
+      summary: Get a task by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Update a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /tasks/{id}/complete:
+    post:
+      operationId: completeTask
+      tags: [tasks]
+      summary: Toggle task completion
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Not found
+
+  # ── HABITS ────────────────────────────────────────────────────
+  /habits:
+    get:
+      operationId: listHabits
+      tags: [habits]
+      summary: List all habits for the authenticated user
+      responses:
+        "200":
+          description: List of habits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Habit"
+    post:
+      operationId: createHabit
+      tags: [habits]
+      summary: Create a new habit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Habit"
+
+  /habits/{id}:
+    get:
+      operationId: getHabit
+      tags: [habits]
+      summary: Get a habit by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Habit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Habit"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateHabit
+      tags: [habits]
+      summary: Update a habit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Habit"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteHabit
+      tags: [habits]
+      summary: Delete a habit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /habits/{id}/streaks:
+    get:
+      operationId: getHabitStreaks
+      tags: [habits]
+      summary: Get current and longest streak for a habit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Streak data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitStreak"
+        "404":
+          description: Not found
+
+  /habits/{id}/heatmap:
+    get:
+      operationId: getHabitHeatmap
+      tags: [habits]
+      summary: Get 12-month completion heatmap data for a habit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Heatmap data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HeatmapEntry"
+        "404":
+          description: Not found
+
+  # ── HABIT LOGS ────────────────────────────────────────────────
+  /habit-logs:
+    get:
+      operationId: listHabitLogs
+      tags: [habitLogs]
+      summary: List habit logs
+      parameters:
+        - name: habitId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of habit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HabitLog"
+    post:
+      operationId: logHabit
+      tags: [habitLogs]
+      summary: Log a habit completion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitLogInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitLog"
+
+  /habit-logs/{id}:
+    delete:
+      operationId: deleteHabitLog
+      tags: [habitLogs]
+      summary: Delete a habit log (un-complete)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  # ── MOOD LOGS ─────────────────────────────────────────────────
+  /mood-logs:
+    get:
+      operationId: listMoodLogs
+      tags: [moodLogs]
+      summary: List mood logs
+      parameters:
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of mood logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MoodLog"
+    post:
+      operationId: createMoodLog
+      tags: [moodLogs]
+      summary: Log today's mood
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoodLogInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoodLog"
+
+  /mood-logs/today:
+    get:
+      operationId: getTodaysMood
+      tags: [moodLogs]
+      summary: Get today's mood log if it exists
+      responses:
+        "200":
+          description: Today's mood
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoodLog"
+        "404":
+          description: No mood logged today
+
+  # ── FOCUS SESSION LOGS ────────────────────────────────────────
+  /focus-sessions:
+    get:
+      operationId: listFocusSessions
+      tags: [taskLogs]
+      summary: List focus/Pomodoro sessions
+      parameters:
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of focus sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FocusSession"
+    post:
+      operationId: createFocusSession
+      tags: [taskLogs]
+      summary: Log a focus/Pomodoro session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FocusSessionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FocusSession"
+
+  # ── TAGS ──────────────────────────────────────────────────────
+  /tags:
+    get:
+      operationId: listTags
+      tags: [tags]
+      summary: List all tags for the authenticated user
+      responses:
+        "200":
+          description: List of tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tag"
+    post:
+      operationId: createTag
+      tags: [tags]
+      summary: Create a new tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+
+  /tags/{id}:
+    delete:
+      operationId: deleteTag
+      tags: [tags]
+      summary: Delete a tag
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  # ── DASHBOARD ─────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get full dashboard summary for today
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/weekly-overview:
+    get:
+      operationId: getWeeklyOverview
+      tags: [dashboard]
+      summary: Get tasks completed per day this week
+      responses:
+        "200":
+          description: Weekly overview
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DayCount"
+
+  /dashboard/productivity-score:
+    get:
+      operationId: getProductivityScore
+      tags: [dashboard]
+      summary: Get today's productivity score (0-100)
+      responses:
+        "200":
+          description: Productivity score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductivityScore"
+
+  /dashboard/upcoming:
+    get:
+      operationId: getUpcomingTasks
+      tags: [dashboard]
+      summary: Get tasks scheduled for the next 7 days
+      responses:
+        "200":
+          description: Upcoming tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +849,521 @@ components:
       required:
         - status
 
+    # ── CATEGORY ──────────────────────────────────────────────
+    Category:
+      type: object
+      required: [id, userId, name, icon, color, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        icon:
+          type: string
+        color:
+          type: string
+        description:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    CategoryInput:
+      type: object
+      required: [name, icon, color]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        icon:
+          type: string
+        color:
+          type: string
+        description:
+          type: string
+
+    CategoryUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        icon:
+          type: string
+        color:
+          type: string
+        description:
+          type: string
+
+    # ── GOAL ──────────────────────────────────────────────────
+    Goal:
+      type: object
+      required: [id, userId, title, goalType, status, priority, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        categoryId:
+          type: ["integer", "null"]
+        goalType:
+          type: string
+          enum: [quantitative, habit, milestone]
+        status:
+          type: string
+          enum: [active, paused, completed, archived]
+        priority:
+          type: string
+          enum: [high, medium, low]
+        targetValue:
+          type: ["number", "null"]
+        currentValue:
+          type: ["number", "null"]
+        startDate:
+          type: ["string", "null"]
+        targetEndDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    GoalInput:
+      type: object
+      required: [title, goalType, priority]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        categoryId:
+          type: integer
+        goalType:
+          type: string
+          enum: [quantitative, habit, milestone]
+        priority:
+          type: string
+          enum: [high, medium, low]
+        targetValue:
+          type: number
+        startDate:
+          type: string
+        targetEndDate:
+          type: string
+        notes:
+          type: string
+
+    GoalUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        categoryId:
+          type: integer
+        status:
+          type: string
+          enum: [active, paused, completed, archived]
+        priority:
+          type: string
+          enum: [high, medium, low]
+        targetValue:
+          type: number
+        currentValue:
+          type: number
+        startDate:
+          type: string
+        targetEndDate:
+          type: string
+        notes:
+          type: string
+
+    GoalProgress:
+      type: object
+      required: [goalId, percent, currentValue, targetValue]
+      properties:
+        goalId:
+          type: integer
+        percent:
+          type: number
+        currentValue:
+          type: number
+        targetValue:
+          type: number
+        completedMilestones:
+          type: integer
+        totalMilestones:
+          type: integer
+
+    # ── TASK ──────────────────────────────────────────────────
+    Task:
+      type: object
+      required: [id, userId, title, priority, status, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        title:
+          type: string
+        notes:
+          type: ["string", "null"]
+        goalId:
+          type: ["integer", "null"]
+        categoryId:
+          type: ["integer", "null"]
+        priority:
+          type: string
+          enum: [urgent, high, normal, low]
+        status:
+          type: string
+          enum: [pending, completed, archived]
+        dueDate:
+          type: ["string", "null"]
+        recurrence:
+          type: ["string", "null"]
+        estimatedMinutes:
+          type: ["integer", "null"]
+        completedAt:
+          type: ["string", "null"]
+        sortOrder:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    TaskInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+        goalId:
+          type: integer
+        categoryId:
+          type: integer
+        priority:
+          type: string
+          enum: [urgent, high, normal, low]
+        dueDate:
+          type: string
+        recurrence:
+          type: string
+        estimatedMinutes:
+          type: integer
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+        goalId:
+          type: integer
+        categoryId:
+          type: integer
+        priority:
+          type: string
+          enum: [urgent, high, normal, low]
+        status:
+          type: string
+          enum: [pending, completed, archived]
+        dueDate:
+          type: string
+        recurrence:
+          type: string
+        estimatedMinutes:
+          type: integer
+        sortOrder:
+          type: integer
+
+    # ── HABIT ─────────────────────────────────────────────────
+    Habit:
+      type: object
+      required: [id, userId, name, frequency, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        categoryId:
+          type: ["integer", "null"]
+        goalId:
+          type: ["integer", "null"]
+        frequency:
+          type: string
+          enum: [daily, weekdays, weekly, monthly, custom]
+        targetValue:
+          type: ["number", "null"]
+        icon:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+        motivationNote:
+          type: ["string", "null"]
+        isArchived:
+          type: boolean
+        createdAt:
+          type: string
+
+    HabitInput:
+      type: object
+      required: [name, frequency]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        categoryId:
+          type: integer
+        goalId:
+          type: integer
+        frequency:
+          type: string
+          enum: [daily, weekdays, weekly, monthly, custom]
+        targetValue:
+          type: number
+        icon:
+          type: string
+        color:
+          type: string
+        motivationNote:
+          type: string
+
+    HabitUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        categoryId:
+          type: integer
+        goalId:
+          type: integer
+        frequency:
+          type: string
+          enum: [daily, weekdays, weekly, monthly, custom]
+        targetValue:
+          type: number
+        icon:
+          type: string
+        color:
+          type: string
+        motivationNote:
+          type: string
+        isArchived:
+          type: boolean
+
+    HabitStreak:
+      type: object
+      required: [habitId, currentStreak, longestStreak]
+      properties:
+        habitId:
+          type: integer
+        currentStreak:
+          type: integer
+        longestStreak:
+          type: integer
+        completionRateWeek:
+          type: number
+        completionRateMonth:
+          type: number
+
+    HeatmapEntry:
+      type: object
+      required: [date, count]
+      properties:
+        date:
+          type: string
+        count:
+          type: integer
+
+    # ── HABIT LOG ─────────────────────────────────────────────
+    HabitLog:
+      type: object
+      required: [id, userId, habitId, logDate, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        habitId:
+          type: integer
+        logDate:
+          type: string
+        value:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    HabitLogInput:
+      type: object
+      required: [habitId, logDate]
+      properties:
+        habitId:
+          type: integer
+        logDate:
+          type: string
+        value:
+          type: number
+        notes:
+          type: string
+
+    # ── MOOD LOG ──────────────────────────────────────────────
+    MoodLog:
+      type: object
+      required: [id, userId, mood, logDate, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        mood:
+          type: integer
+          minimum: 1
+          maximum: 5
+        notes:
+          type: ["string", "null"]
+        logDate:
+          type: string
+        createdAt:
+          type: string
+
+    MoodLogInput:
+      type: object
+      required: [mood, logDate]
+      properties:
+        mood:
+          type: integer
+          minimum: 1
+          maximum: 5
+        notes:
+          type: string
+        logDate:
+          type: string
+
+    # ── FOCUS SESSION ─────────────────────────────────────────
+    FocusSession:
+      type: object
+      required: [id, userId, durationMinutes, sessionDate, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        taskId:
+          type: ["integer", "null"]
+        durationMinutes:
+          type: integer
+        sessionType:
+          type: string
+          enum: [pomodoro, short_break, long_break, custom]
+        sessionDate:
+          type: string
+        createdAt:
+          type: string
+
+    FocusSessionInput:
+      type: object
+      required: [durationMinutes, sessionDate]
+      properties:
+        taskId:
+          type: integer
+        durationMinutes:
+          type: integer
+        sessionType:
+          type: string
+          enum: [pomodoro, short_break, long_break, custom]
+        sessionDate:
+          type: string
+
+    # ── TAG ───────────────────────────────────────────────────
+    Tag:
+      type: object
+      required: [id, userId, name, color, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+        createdAt:
+          type: string
+
+    TagInput:
+      type: object
+      required: [name, color]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        color:
+          type: string
+
+    # ── DASHBOARD ─────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      required: [tasksToday, tasksCompleted, activeGoals, habitsToday, habitsCompleted, productivityScore, moodToday]
+      properties:
+        tasksToday:
+          type: integer
+        tasksCompleted:
+          type: integer
+        activeGoals:
+          type: integer
+        habitsToday:
+          type: integer
+        habitsCompleted:
+          type: integer
+        productivityScore:
+          type: integer
+        moodToday:
+          type: ["integer", "null"]
+        streakHighlight:
+          type: ["integer", "null"]
+
+    DayCount:
+      type: object
+      required: [date, day, count]
+      properties:
+        date:
+          type: string
+        day:
+          type: string
+        count:
+          type: integer
+
+    ProductivityScore:
+      type: object
+      required: [score, tasksCompletionRate, habitCompletionRate, date]
+      properties:
+        score:
+          type: integer
+        tasksCompletionRate:
+          type: number
+        habitCompletionRate:
+          type: number
+        date:
+          type: string
