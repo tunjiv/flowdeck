@@ -56,6 +56,7 @@ export * from "./taskInput";
 export * from "./taskInputPriority";
 export * from "./taskPriority";
 export * from "./taskStatus";
+export * from "./taskTagAssociation";
 export * from "./taskUpdate";
 export * from "./taskUpdatePriority";
 export * from "./taskUpdateStatus";

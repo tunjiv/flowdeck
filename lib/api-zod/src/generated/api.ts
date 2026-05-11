@@ -483,6 +483,49 @@ export const ToggleSubtaskResponse = zod.object({
 });
 
 /**
+ * @summary Get all task-tag pairs for the authenticated user
+ */
+export const ListTaskTagAssociationsResponseItem = zod.object({
+  taskId: zod.number(),
+  tagId: zod.number(),
+});
+export const ListTaskTagAssociationsResponse = zod.array(
+  ListTaskTagAssociationsResponseItem,
+);
+
+/**
+ * @summary Get tags assigned to a task
+ */
+export const GetTaskTagsParams = zod.object({
+  taskId: zod.coerce.number(),
+});
+
+export const GetTaskTagsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  name: zod.string(),
+  color: zod.string(),
+  createdAt: zod.string(),
+});
+export const GetTaskTagsResponse = zod.array(GetTaskTagsResponseItem);
+
+/**
+ * @summary Assign a tag to a task
+ */
+export const AddTagToTaskParams = zod.object({
+  taskId: zod.coerce.number(),
+  tagId: zod.coerce.number(),
+});
+
+/**
+ * @summary Remove a tag from a task
+ */
+export const RemoveTagFromTaskParams = zod.object({
+  taskId: zod.coerce.number(),
+  tagId: zod.coerce.number(),
+});
+
+/**
  * @summary List all habits for the authenticated user
  */
 export const listHabitsResponseGraceDaysPerWeekMin = 0;

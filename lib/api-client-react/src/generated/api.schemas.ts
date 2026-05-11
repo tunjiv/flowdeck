@@ -257,6 +257,11 @@ export interface TaskUpdate {
   sortOrder?: number;
 }
 
+export interface TaskTagAssociation {
+  taskId: number;
+  tagId: number;
+}
+
 export interface Subtask {
   id: number;
   taskId: number;

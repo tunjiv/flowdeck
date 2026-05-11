@@ -558,6 +558,85 @@ paths:
         "404":
           description: Not found
 
+  # ── TASK TAGS ─────────────────────────────────────────────────
+  /task-tags:
+    get:
+      operationId: listTaskTagAssociations
+      tags: [tasks]
+      summary: Get all task-tag pairs for the authenticated user
+      responses:
+        "200":
+          description: All task-tag pairs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskTagAssociation"
+
+  /tasks/{taskId}/tags:
+    get:
+      operationId: getTaskTags
+      tags: [tasks]
+      summary: Get tags assigned to a task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tag"
+
+  /tasks/{taskId}/tags/{tagId}:
+    put:
+      operationId: addTagToTask
+      tags: [tasks]
+      summary: Assign a tag to a task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: tagId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Tag assigned
+        "404":
+          description: Not found
+    delete:
+      operationId: removeTagFromTask
+      tags: [tasks]
+      summary: Remove a tag from a task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: tagId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Tag removed
+        "404":
+          description: Not found
+
   # ── HABITS ────────────────────────────────────────────────────
   /habits:
     get:
@@ -1227,6 +1306,16 @@ components:
         estimatedMinutes:
           type: integer
         sortOrder:
+          type: integer
+
+    # ── TASK TAG ASSOCIATION ──────────────────────────────────
+    TaskTagAssociation:
+      type: object
+      required: [taskId, tagId]
+      properties:
+        taskId:
+          type: integer
+        tagId:
           type: integer
 
     # ── SUBTASK ───────────────────────────────────────────────
