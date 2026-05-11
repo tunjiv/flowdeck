@@ -11,7 +11,7 @@ import {
   getGetDashboardSummaryQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, CheckCircle2, Circle, Trash2, MoreHorizontal, CalendarDays, Flag } from "lucide-react";
+import { Plus, CheckCircle2, Circle, Trash2, MoreHorizontal, CalendarDays, Repeat2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -100,7 +100,7 @@ function TaskForm({
         onError: () => toast.error("Failed to update task"),
       });
     } else {
-      create.mutate({ data: { ...payload, userId: "" } }, {
+      create.mutate({ data: payload }, {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getListTasksQueryKey() });
           toast.success("Task created");
@@ -337,6 +337,12 @@ export default function Tasks() {
                   <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${priorityBadge[task.priority]}`}>
                     {task.priority}
                   </span>
+                  {task.recurrence && task.recurrence !== "none" && (
+                    <span className="flex items-center gap-1 text-xs text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded">
+                      <Repeat2 className="w-3 h-3" />
+                      {task.recurrence}
+                    </span>
+                  )}
                 </div>
               </div>
               <DropdownMenu>

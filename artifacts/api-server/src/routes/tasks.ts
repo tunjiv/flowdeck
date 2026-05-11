@@ -137,6 +137,17 @@ router.delete("/tasks/:id", requireAuth, async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
+/** Advance a YYYY-MM-DD date string by the given recurrence cadence. */
+function nextDueDate(base: string, recurrence: string): string {
+  const d = new Date(`${base}T00:00:00`);
+  switch (recurrence) {
+    case "daily":   d.setDate(d.getDate() + 1); break;
+    case "weekly":  d.setDate(d.getDate() + 7); break;
+    case "monthly": d.setMonth(d.getMonth() + 1); break;
+  }
+  return d.toISOString().split("T")[0];
+}
+
 router.post("/tasks/:id/complete", requireAuth, async (req, res): Promise<void> => {
   const userId = getUserId(req);
   const params = CompleteTaskParams.safeParse(req.params);
@@ -161,6 +172,27 @@ router.post("/tasks/:id/complete", requireAuth, async (req, res): Promise<void> 
     })
     .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.userId, userId)))
     .returning();
+
+  // Auto-spawn next occurrence when a recurring task is completed
+  if (newStatus === "completed" && existing.recurrence && existing.recurrence !== "none") {
+    const base = existing.dueDate ?? new Date().toISOString().split("T")[0];
+    const nextDate = nextDueDate(base, existing.recurrence);
+    await db.insert(tasksTable).values({
+      userId,
+      title: existing.title,
+      notes: existing.notes,
+      goalId: existing.goalId,
+      categoryId: existing.categoryId,
+      priority: existing.priority,
+      status: "pending",
+      dueDate: nextDate,
+      recurrence: existing.recurrence,
+      estimatedMinutes: existing.estimatedMinutes,
+      sortOrder: existing.sortOrder,
+    });
+    req.log.info({ taskId: existing.id, recurrence: existing.recurrence, nextDate }, "spawned next recurrence");
+  }
+
   res.json(task);
 });
 
