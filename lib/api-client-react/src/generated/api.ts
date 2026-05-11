@@ -44,6 +44,9 @@ import type {
   MoodLog,
   MoodLogInput,
   ProductivityScore,
+  Subtask,
+  SubtaskInput,
+  SubtaskUpdate,
   Tag,
   TagInput,
   Task,
@@ -1739,6 +1742,438 @@ export const useCompleteTask = <
   TContext
 > => {
   return useMutation(getCompleteTaskMutationOptions(options));
+};
+
+/**
+ * @summary List subtasks for a task
+ */
+export const getListSubtasksUrl = (taskId: number) => {
+  return `/api/tasks/${taskId}/subtasks`;
+};
+
+export const listSubtasks = async (
+  taskId: number,
+  options?: RequestInit,
+): Promise<Subtask[]> => {
+  return customFetch<Subtask[]>(getListSubtasksUrl(taskId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSubtasksQueryKey = (taskId: number) => {
+  return [`/api/tasks/${taskId}/subtasks`] as const;
+};
+
+export const getListSubtasksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSubtasks>>,
+  TError = ErrorType<unknown>,
+>(
+  taskId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSubtasks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSubtasksQueryKey(taskId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSubtasks>>> = ({
+    signal,
+  }) => listSubtasks(taskId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!taskId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSubtasks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSubtasksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSubtasks>>
+>;
+export type ListSubtasksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List subtasks for a task
+ */
+
+export function useListSubtasks<
+  TData = Awaited<ReturnType<typeof listSubtasks>>,
+  TError = ErrorType<unknown>,
+>(
+  taskId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSubtasks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSubtasksQueryOptions(taskId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a subtask
+ */
+export const getCreateSubtaskUrl = (taskId: number) => {
+  return `/api/tasks/${taskId}/subtasks`;
+};
+
+export const createSubtask = async (
+  taskId: number,
+  subtaskInput: SubtaskInput,
+  options?: RequestInit,
+): Promise<Subtask> => {
+  return customFetch<Subtask>(getCreateSubtaskUrl(taskId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(subtaskInput),
+  });
+};
+
+export const getCreateSubtaskMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSubtask>>,
+    TError,
+    { taskId: number; data: BodyType<SubtaskInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSubtask>>,
+  TError,
+  { taskId: number; data: BodyType<SubtaskInput> },
+  TContext
+> => {
+  const mutationKey = ["createSubtask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSubtask>>,
+    { taskId: number; data: BodyType<SubtaskInput> }
+  > = (props) => {
+    const { taskId, data } = props ?? {};
+
+    return createSubtask(taskId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSubtaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSubtask>>
+>;
+export type CreateSubtaskMutationBody = BodyType<SubtaskInput>;
+export type CreateSubtaskMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a subtask
+ */
+export const useCreateSubtask = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSubtask>>,
+    TError,
+    { taskId: number; data: BodyType<SubtaskInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSubtask>>,
+  TError,
+  { taskId: number; data: BodyType<SubtaskInput> },
+  TContext
+> => {
+  return useMutation(getCreateSubtaskMutationOptions(options));
+};
+
+/**
+ * @summary Update a subtask
+ */
+export const getUpdateSubtaskUrl = (taskId: number, id: number) => {
+  return `/api/tasks/${taskId}/subtasks/${id}`;
+};
+
+export const updateSubtask = async (
+  taskId: number,
+  id: number,
+  subtaskUpdate: SubtaskUpdate,
+  options?: RequestInit,
+): Promise<Subtask> => {
+  return customFetch<Subtask>(getUpdateSubtaskUrl(taskId, id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(subtaskUpdate),
+  });
+};
+
+export const getUpdateSubtaskMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSubtask>>,
+    TError,
+    { taskId: number; id: number; data: BodyType<SubtaskUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSubtask>>,
+  TError,
+  { taskId: number; id: number; data: BodyType<SubtaskUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateSubtask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSubtask>>,
+    { taskId: number; id: number; data: BodyType<SubtaskUpdate> }
+  > = (props) => {
+    const { taskId, id, data } = props ?? {};
+
+    return updateSubtask(taskId, id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSubtaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSubtask>>
+>;
+export type UpdateSubtaskMutationBody = BodyType<SubtaskUpdate>;
+export type UpdateSubtaskMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a subtask
+ */
+export const useUpdateSubtask = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSubtask>>,
+    TError,
+    { taskId: number; id: number; data: BodyType<SubtaskUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSubtask>>,
+  TError,
+  { taskId: number; id: number; data: BodyType<SubtaskUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateSubtaskMutationOptions(options));
+};
+
+/**
+ * @summary Delete a subtask
+ */
+export const getDeleteSubtaskUrl = (taskId: number, id: number) => {
+  return `/api/tasks/${taskId}/subtasks/${id}`;
+};
+
+export const deleteSubtask = async (
+  taskId: number,
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteSubtaskUrl(taskId, id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSubtaskMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSubtask>>,
+    TError,
+    { taskId: number; id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSubtask>>,
+  TError,
+  { taskId: number; id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSubtask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSubtask>>,
+    { taskId: number; id: number }
+  > = (props) => {
+    const { taskId, id } = props ?? {};
+
+    return deleteSubtask(taskId, id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSubtaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSubtask>>
+>;
+
+export type DeleteSubtaskMutationError = ErrorType<void>;
+
+/**
+ * @summary Delete a subtask
+ */
+export const useDeleteSubtask = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSubtask>>,
+    TError,
+    { taskId: number; id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSubtask>>,
+  TError,
+  { taskId: number; id: number },
+  TContext
+> => {
+  return useMutation(getDeleteSubtaskMutationOptions(options));
+};
+
+/**
+ * @summary Toggle subtask completion
+ */
+export const getToggleSubtaskUrl = (taskId: number, id: number) => {
+  return `/api/tasks/${taskId}/subtasks/${id}/toggle`;
+};
+
+export const toggleSubtask = async (
+  taskId: number,
+  id: number,
+  options?: RequestInit,
+): Promise<Subtask> => {
+  return customFetch<Subtask>(getToggleSubtaskUrl(taskId, id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getToggleSubtaskMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleSubtask>>,
+    TError,
+    { taskId: number; id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof toggleSubtask>>,
+  TError,
+  { taskId: number; id: number },
+  TContext
+> => {
+  const mutationKey = ["toggleSubtask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof toggleSubtask>>,
+    { taskId: number; id: number }
+  > = (props) => {
+    const { taskId, id } = props ?? {};
+
+    return toggleSubtask(taskId, id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ToggleSubtaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof toggleSubtask>>
+>;
+
+export type ToggleSubtaskMutationError = ErrorType<void>;
+
+/**
+ * @summary Toggle subtask completion
+ */
+export const useToggleSubtask = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleSubtask>>,
+    TError,
+    { taskId: number; id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof toggleSubtask>>,
+  TError,
+  { taskId: number; id: number },
+  TContext
+> => {
+  return useMutation(getToggleSubtaskMutationOptions(options));
 };
 
 /**

@@ -435,6 +435,129 @@ paths:
         "404":
           description: Not found
 
+  # ── SUBTASKS ──────────────────────────────────────────────────
+  /tasks/{taskId}/subtasks:
+    get:
+      operationId: listSubtasks
+      tags: [tasks]
+      summary: List subtasks for a task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of subtasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subtask"
+    post:
+      operationId: createSubtask
+      tags: [tasks]
+      summary: Create a subtask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubtaskInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subtask"
+
+  /tasks/{taskId}/subtasks/{id}:
+    patch:
+      operationId: updateSubtask
+      tags: [tasks]
+      summary: Update a subtask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubtaskUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subtask"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteSubtask
+      tags: [tasks]
+      summary: Delete a subtask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /tasks/{taskId}/subtasks/{id}/toggle:
+    post:
+      operationId: toggleSubtask
+      tags: [tasks]
+      summary: Toggle subtask completion
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Toggled subtask
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subtask"
+        "404":
+          description: Not found
+
   # ── HABITS ────────────────────────────────────────────────────
   /habits:
     get:
@@ -1103,6 +1226,47 @@ components:
           type: string
         estimatedMinutes:
           type: integer
+        sortOrder:
+          type: integer
+
+    # ── SUBTASK ───────────────────────────────────────────────
+    Subtask:
+      type: object
+      required: [id, taskId, userId, title, completed, createdAt]
+      properties:
+        id:
+          type: integer
+        taskId:
+          type: integer
+        userId:
+          type: string
+        title:
+          type: string
+        completed:
+          type: boolean
+        sortOrder:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+
+    SubtaskInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        sortOrder:
+          type: integer
+
+    SubtaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        completed:
+          type: boolean
         sortOrder:
           type: integer
 

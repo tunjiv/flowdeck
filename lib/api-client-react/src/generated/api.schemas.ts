@@ -257,6 +257,30 @@ export interface TaskUpdate {
   sortOrder?: number;
 }
 
+export interface Subtask {
+  id: number;
+  taskId: number;
+  userId: string;
+  title: string;
+  completed: boolean;
+  /** @nullable */
+  sortOrder?: number | null;
+  createdAt: string;
+}
+
+export interface SubtaskInput {
+  /** @minLength 1 */
+  title: string;
+  sortOrder?: number;
+}
+
+export interface SubtaskUpdate {
+  /** @minLength 1 */
+  title?: string;
+  completed?: boolean;
+  sortOrder?: number;
+}
+
 export type HabitFrequency =
   (typeof HabitFrequency)[keyof typeof HabitFrequency];
 

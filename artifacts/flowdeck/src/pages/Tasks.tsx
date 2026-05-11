@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   useListTasks,
   useCreateTask,
@@ -7,13 +7,20 @@ import {
   useCompleteTask,
   useListGoals,
   useListCategories,
+  useListSubtasks,
+  useCreateSubtask,
+  useToggleSubtask,
+  useDeleteSubtask,
   getListTasksQueryKey,
+  getListSubtasksQueryKey,
   getGetDashboardSummaryQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, CheckCircle2, Circle, Trash2, MoreHorizontal, CalendarDays, Repeat2 } from "lucide-react";
+import {
+  Plus, CheckCircle2, Circle, Trash2, MoreHorizontal,
+  CalendarDays, Repeat2, ChevronDown, ChevronRight, X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -30,13 +37,6 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 
-const priorityColors: Record<string, string> = {
-  urgent: "text-red-500",
-  high: "text-orange-500",
-  normal: "text-blue-500",
-  low: "text-gray-400",
-};
-
 const priorityBadge: Record<string, string> = {
   urgent: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   high: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
@@ -44,6 +44,119 @@ const priorityBadge: Record<string, string> = {
   low: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
 
+// ── Subtask panel ─────────────────────────────────────────────────────────────
+function SubtaskPanel({ taskId }: { taskId: number }) {
+  const qc = useQueryClient();
+  const { data: subtasks = [], isLoading } = useListSubtasks(taskId);
+  const create = useCreateSubtask();
+  const toggle = useToggleSubtask();
+  const del = useDeleteSubtask();
+  const [newTitle, setNewTitle] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const done = subtasks.filter(s => s.completed).length;
+  const total = subtasks.length;
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: getListSubtasksQueryKey(taskId) });
+
+  const handleAdd = () => {
+    const title = newTitle.trim();
+    if (!title) return;
+    create.mutate(
+      { taskId, data: { title } },
+      {
+        onSuccess: () => { invalidate(); setNewTitle(""); },
+        onError: () => toast.error("Failed to add subtask"),
+      },
+    );
+  };
+
+  const handleToggle = (id: number) => {
+    toggle.mutate(
+      { taskId, id },
+      { onSuccess: invalidate, onError: () => toast.error("Failed to toggle subtask") },
+    );
+  };
+
+  const handleDelete = (id: number) => {
+    del.mutate(
+      { taskId, id },
+      { onSuccess: invalidate, onError: () => toast.error("Failed to delete subtask") },
+    );
+  };
+
+  return (
+    <div className="mt-2 pl-8 space-y-2" onClick={e => e.stopPropagation()}>
+      {/* Progress bar */}
+      {total > 0 && (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-300"
+              style={{ width: `${total > 0 ? Math.round((done / total) * 100) : 0}%` }}
+            />
+          </div>
+          <span className="text-xs text-muted-foreground tabular-nums">{done}/{total}</span>
+        </div>
+      )}
+
+      {/* Subtask list */}
+      {isLoading ? (
+        <div className="space-y-1">
+          {[1, 2].map(i => <Skeleton key={i} className="h-6 rounded" />)}
+        </div>
+      ) : (
+        <div className="space-y-0.5">
+          {subtasks.map(s => (
+            <div key={s.id} className="flex items-center gap-2 group/sub py-0.5">
+              <button
+                onClick={() => handleToggle(s.id)}
+                className="flex-shrink-0"
+              >
+                {s.completed
+                  ? <CheckCircle2 className="w-4 h-4 text-primary" />
+                  : <Circle className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors" />}
+              </button>
+              <span className={`flex-1 text-xs ${s.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                {s.title}
+              </span>
+              <button
+                onClick={() => handleDelete(s.id)}
+                className="opacity-0 group-hover/sub:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add subtask */}
+      <div className="flex items-center gap-1.5">
+        <input
+          ref={inputRef}
+          type="text"
+          value={newTitle}
+          onChange={e => setNewTitle(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") handleAdd(); }}
+          placeholder="Add subtask…"
+          className="flex-1 text-xs bg-transparent border-b border-dashed border-border focus:border-primary outline-none py-0.5 placeholder:text-muted-foreground/50"
+        />
+        {newTitle.trim() && (
+          <button
+            onClick={handleAdd}
+            disabled={create.isPending}
+            className="text-xs text-primary hover:text-primary/80 font-medium"
+          >
+            Add
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Task form ─────────────────────────────────────────────────────────────────
 function TaskForm({
   open,
   onClose,
@@ -80,10 +193,10 @@ function TaskForm({
 
   const handleSubmit = () => {
     if (!title.trim()) { toast.error("Title is required"); return; }
-    const payload: any = {
+    const payload = {
       title: title.trim(),
       notes: notes.trim() || undefined,
-      priority,
+      priority: priority as "urgent" | "high" | "normal" | "low",
       dueDate: dueDate || undefined,
       estimatedMinutes: estimated ? Number(estimated) : undefined,
       goalId: goalId ? Number(goalId) : undefined,
@@ -198,6 +311,7 @@ function TaskForm({
   );
 }
 
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function Tasks() {
   const qc = useQueryClient();
   const { data: tasks, isLoading } = useListTasks();
@@ -208,6 +322,15 @@ export default function Tasks() {
   const [editTask, setEditTask] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState("pending");
   const [filterPriority, setFilterPriority] = useState("all");
+  const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
+
+  const toggleExpand = (id: number) => {
+    setExpandedTasks(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
   const filtered = (tasks ?? [])
     .filter(t => filterStatus === "all" || t.status === filterStatus)
@@ -302,67 +425,90 @@ export default function Tasks() {
         </div>
       ) : (
         <div className="space-y-1.5">
-          {filtered.map(task => (
-            <div
-              key={task.id}
-              data-testid={`task-${task.id}`}
-              className={`flex items-start gap-3 p-3.5 rounded-xl border border-border bg-card hover:shadow-sm transition-all ${
-                task.status === "completed" ? "opacity-60" : ""
-              }`}
-            >
-              <button
-                data-testid={`complete-${task.id}`}
-                onClick={() => handleComplete(task.id)}
-                className="mt-0.5 flex-shrink-0"
+          {filtered.map(task => {
+            const expanded = expandedTasks.has(task.id);
+            return (
+              <div
+                key={task.id}
+                data-testid={`task-${task.id}`}
+                className={`rounded-xl border border-border bg-card hover:shadow-sm transition-all ${
+                  task.status === "completed" ? "opacity-60" : ""
+                }`}
               >
-                {task.status === "completed"
-                  ? <CheckCircle2 className="w-5 h-5 text-primary" />
-                  : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />}
-              </button>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${task.status === "completed" ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                  {task.title}
-                </p>
-                {task.notes && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.notes}</p>}
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {task.dueDate && (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <CalendarDays className="w-3 h-3" />
-                      {task.dueDate === format(new Date(), "yyyy-MM-dd") ? "Today" : task.dueDate}
-                    </span>
-                  )}
-                  {task.estimatedMinutes && (
-                    <span className="text-xs text-muted-foreground">{task.estimatedMinutes}m</span>
-                  )}
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${priorityBadge[task.priority]}`}>
-                    {task.priority}
-                  </span>
-                  {task.recurrence && task.recurrence !== "none" && (
-                    <span className="flex items-center gap-1 text-xs text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded">
-                      <Repeat2 className="w-3 h-3" />
-                      {task.recurrence}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" data-testid={`task-menu-${task.id}`}>
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => { setEditTask(task); setFormOpen(true); }}>Edit</DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => handleDelete(task.id)}
+                {/* Task row */}
+                <div className="flex items-start gap-3 p-3.5">
+                  <button
+                    data-testid={`complete-${task.id}`}
+                    onClick={() => handleComplete(task.id)}
+                    className="mt-0.5 flex-shrink-0"
                   >
-                    <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          ))}
+                    {task.status === "completed"
+                      ? <CheckCircle2 className="w-5 h-5 text-primary" />
+                      : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${task.status === "completed" ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                      {task.title}
+                    </p>
+                    {task.notes && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.notes}</p>}
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {task.dueDate && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <CalendarDays className="w-3 h-3" />
+                          {task.dueDate === format(new Date(), "yyyy-MM-dd") ? "Today" : task.dueDate}
+                        </span>
+                      )}
+                      {task.estimatedMinutes && (
+                        <span className="text-xs text-muted-foreground">{task.estimatedMinutes}m</span>
+                      )}
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${priorityBadge[task.priority]}`}>
+                        {task.priority}
+                      </span>
+                      {task.recurrence && task.recurrence !== "none" && (
+                        <span className="flex items-center gap-1 text-xs text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded">
+                          <Repeat2 className="w-3 h-3" />
+                          {task.recurrence}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Expand/collapse subtasks */}
+                  <button
+                    onClick={() => toggleExpand(task.id)}
+                    className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+                    title={expanded ? "Hide subtasks" : "Show subtasks"}
+                  >
+                    {expanded
+                      ? <ChevronDown className="w-4 h-4" />
+                      : <ChevronRight className="w-4 h-4" />}
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" data-testid={`task-menu-${task.id}`}>
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => { setEditTask(task); setFormOpen(true); }}>Edit</DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => handleDelete(task.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                {/* Subtask panel */}
+                {expanded && (
+                  <div className="pb-3 px-3.5">
+                    <SubtaskPanel taskId={task.id} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

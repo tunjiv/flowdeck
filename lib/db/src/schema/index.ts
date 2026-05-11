@@ -1,6 +1,7 @@
 export * from "./categories";
 export * from "./goals";
 export * from "./tasks";
+export * from "./subtasks";
 export * from "./habits";
 export * from "./habitLogs";
 export * from "./moodLogs";

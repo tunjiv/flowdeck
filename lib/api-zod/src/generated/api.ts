@@ -403,6 +403,86 @@ export const CompleteTaskResponse = zod.object({
 });
 
 /**
+ * @summary List subtasks for a task
+ */
+export const ListSubtasksParams = zod.object({
+  taskId: zod.coerce.number(),
+});
+
+export const ListSubtasksResponseItem = zod.object({
+  id: zod.number(),
+  taskId: zod.number(),
+  userId: zod.string(),
+  title: zod.string(),
+  completed: zod.boolean(),
+  sortOrder: zod.number().nullish(),
+  createdAt: zod.string(),
+});
+export const ListSubtasksResponse = zod.array(ListSubtasksResponseItem);
+
+/**
+ * @summary Create a subtask
+ */
+export const CreateSubtaskParams = zod.object({
+  taskId: zod.coerce.number(),
+});
+
+export const CreateSubtaskBody = zod.object({
+  title: zod.string().min(1),
+  sortOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update a subtask
+ */
+export const UpdateSubtaskParams = zod.object({
+  taskId: zod.coerce.number(),
+  id: zod.coerce.number(),
+});
+
+export const UpdateSubtaskBody = zod.object({
+  title: zod.string().min(1).optional(),
+  completed: zod.boolean().optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateSubtaskResponse = zod.object({
+  id: zod.number(),
+  taskId: zod.number(),
+  userId: zod.string(),
+  title: zod.string(),
+  completed: zod.boolean(),
+  sortOrder: zod.number().nullish(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Delete a subtask
+ */
+export const DeleteSubtaskParams = zod.object({
+  taskId: zod.coerce.number(),
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Toggle subtask completion
+ */
+export const ToggleSubtaskParams = zod.object({
+  taskId: zod.coerce.number(),
+  id: zod.coerce.number(),
+});
+
+export const ToggleSubtaskResponse = zod.object({
+  id: zod.number(),
+  taskId: zod.number(),
+  userId: zod.string(),
+  title: zod.string(),
+  completed: zod.boolean(),
+  sortOrder: zod.number().nullish(),
+  createdAt: zod.string(),
+});
+
+/**
  * @summary List all habits for the authenticated user
  */
 export const listHabitsResponseGraceDaysPerWeekMin = 0;
