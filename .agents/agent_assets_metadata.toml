@@ -6,3 +6,9 @@ id = "3SGg9xCPDRz8S8MNfcnzu"
 uri = "file://DOCUMENTATION.md"
 type = "text"
 title = "FlowDeck Documentation"
+
+[[outputs]]
+id = "QX9P4FZKRnVl_5Zci6_dM"
+uri = "file://FlowDeck-Documentation.pdf"
+type = "pdf"
+title = "FlowDeck Documentation (PDF)"
