@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "marked": "^18.0.3",
-    "pdfkit": "^0.18.0"
+    "pdfkit": "^0.18.0",
+    "xlsx": "^0.18.5"
   }
 }

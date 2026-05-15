@@ -12,3 +12,9 @@ id = "QX9P4FZKRnVl_5Zci6_dM"
 uri = "file://FlowDeck-Documentation.pdf"
 type = "pdf"
 title = "FlowDeck Documentation (PDF)"
+
+[[outputs]]
+id = "tq_MYwN3VlrGSTK2xsJ0D"
+uri = "file://FlowDeck-Feature-Status.xlsx"
+type = "table"
+title = "FlowDeck Feature Status Table"
