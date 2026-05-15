@@ -9,11 +9,10 @@ import {
   getListGoalsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Target, ChevronRight, Trash2, MoreHorizontal, CheckCircle2 } from "lucide-react";
+import { Plus, Target, ChevronRight, Trash2, MoreHorizontal, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -28,6 +27,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useGoalMilestoneTracker, checkGoalMilestone } from "@/lib/goalMilestones";
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
@@ -42,6 +42,7 @@ const priorityColors: Record<string, string> = {
   low: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
 
+// ── Goal form ─────────────────────────────────────────────────────────────────
 function GoalForm({
   open, onClose, initial,
 }: {
@@ -88,8 +89,9 @@ function GoalForm({
     };
     if (initial) {
       update.mutate({ id: initial.id, data: payload }, {
-        onSuccess: () => {
+        onSuccess: (updated) => {
           qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
+          checkGoalMilestone(updated);
           toast.success("Goal updated");
           onClose();
         },
@@ -186,6 +188,83 @@ function GoalForm({
   );
 }
 
+// ── Quick progress log ────────────────────────────────────────────────────────
+function QuickProgressInput({ goal }: {
+  goal: {
+    id: number;
+    title: string;
+    goalType: string;
+    currentValue?: number | null;
+    targetValue?: number | null;
+    priority: string;
+    status: string;
+    description?: string | null;
+    categoryId?: number | null;
+    targetEndDate?: string | null;
+  }
+}) {
+  const qc = useQueryClient();
+  const update = useUpdateGoal();
+  const [delta, setDelta] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const handleLog = () => {
+    const n = Number(delta);
+    if (!delta || isNaN(n)) return;
+    const newValue = (goal.currentValue ?? 0) + n;
+    update.mutate(
+      {
+        id: goal.id,
+        data: { currentValue: newValue },
+      },
+      {
+        onSuccess: (updated) => {
+          qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
+          checkGoalMilestone(updated);
+          setDelta("");
+          setOpen(false);
+        },
+        onError: () => toast.error("Failed to log progress"),
+      },
+    );
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors mt-2"
+        title="Log progress"
+      >
+        <TrendingUp className="w-3.5 h-3.5" />
+        Log progress
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-2" onClick={e => e.stopPropagation()}>
+      <span className="text-xs text-muted-foreground">Add</span>
+      <Input
+        type="number"
+        value={delta}
+        onChange={e => setDelta(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") handleLog(); if (e.key === "Escape") setOpen(false); }}
+        className="h-7 w-24 text-xs"
+        placeholder="e.g. 5"
+        autoFocus
+      />
+      <Button size="sm" className="h-7 text-xs px-3" onClick={handleLog} disabled={update.isPending}>
+        Save
+      </Button>
+      <button onClick={() => { setDelta(""); setOpen(false); }} className="text-xs text-muted-foreground hover:text-foreground">
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function Goals() {
   const qc = useQueryClient();
   const { data: goals, isLoading } = useListGoals();
@@ -194,6 +273,9 @@ export default function Goals() {
   const [formOpen, setFormOpen] = useState(false);
   const [editGoal, setEditGoal] = useState<typeof goals extends Array<infer T> ? T : any | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
+
+  // Milestone notifications — fires toasts when a goal crosses 25/50/75/100%
+  useGoalMilestoneTracker(goals);
 
   const filtered = goals?.filter(g => filterStatus === "all" || g.status === filterStatus) ?? [];
 
@@ -256,6 +338,15 @@ export default function Goals() {
             const pct = goal.targetValue && goal.targetValue > 0
               ? Math.min(100, Math.round(((goal.currentValue ?? 0) / goal.targetValue) * 100))
               : 0;
+
+            // Milestone ring color
+            const milestoneColor =
+              pct >= 100 ? "text-primary" :
+              pct >= 75  ? "text-orange-500" :
+              pct >= 50  ? "text-amber-500" :
+              pct >= 25  ? "text-blue-500" :
+              "text-muted-foreground";
+
             return (
               <Card key={goal.id} data-testid={`goal-${goal.id}`} className="border-border hover:shadow-sm transition-shadow">
                 <CardContent className="p-4">
@@ -272,6 +363,11 @@ export default function Goals() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${priorityColors[goal.priority]}`}>
                           {goal.priority}
                         </span>
+                        {pct >= 25 && goal.goalType === "quantitative" && (
+                          <span className={`text-xs font-semibold ${milestoneColor}`}>
+                            {pct >= 100 ? "🏆 Complete" : pct >= 75 ? "🔥 Almost there" : pct >= 50 ? "⚡ Halfway" : "🎯 Started"}
+                          </span>
+                        )}
                       </div>
                       {goal.description && (
                         <p className="text-sm text-muted-foreground mb-2 line-clamp-1">{goal.description}</p>
@@ -280,9 +376,12 @@ export default function Goals() {
                         <div className="mt-2">
                           <div className="flex justify-between text-xs text-muted-foreground mb-1">
                             <span>{goal.currentValue ?? 0} / {goal.targetValue ?? "—"}</span>
-                            <span>{pct}%</span>
+                            <span className="font-medium">{pct}%</span>
                           </div>
                           <Progress value={pct} className="h-1.5" />
+                          {goal.status === "active" && (
+                            <QuickProgressInput goal={goal} />
+                          )}
                         </div>
                       )}
                       {goal.targetEndDate && (
