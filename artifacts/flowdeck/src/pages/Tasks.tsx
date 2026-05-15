@@ -12,12 +12,14 @@ import {
   useToggleSubtask,
   useDeleteSubtask,
   useListTags,
+  useCreateTag,
   useListTaskTagAssociations,
   useAddTagToTask,
   useRemoveTagFromTask,
   getListTasksQueryKey,
   getListSubtasksQueryKey,
   getListTaskTagAssociationsQueryKey,
+  getListTagsQueryKey,
   getGetDashboardSummaryQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -50,14 +52,21 @@ const priorityBadge: Record<string, string> = {
 };
 
 // ── Tag picker inline ─────────────────────────────────────────────────────────
+const TAG_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899", "#14b8a6", "#8b5cf6"];
+
 function TagPicker({ taskId, assignedTagIds }: { taskId: number; assignedTagIds: number[] }) {
   const qc = useQueryClient();
   const { data: allTags = [] } = useListTags();
   const add = useAddTagToTask();
   const remove = useRemoveTagFromTask();
+  const createTag = useCreateTag();
   const [showPicker, setShowPicker] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
+  const [showNewForm, setShowNewForm] = useState(false);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: getListTaskTagAssociationsQueryKey() });
+  const invalidateTags = () => qc.invalidateQueries({ queryKey: getListTagsQueryKey() });
 
   const toggle = (tagId: number) => {
     const has = assignedTagIds.includes(tagId);
@@ -68,7 +77,23 @@ function TagPicker({ taskId, assignedTagIds }: { taskId: number; assignedTagIds:
     }
   };
 
-  if (!allTags.length) return null;
+  const handleCreateTag = () => {
+    const name = newTagName.trim();
+    if (!name) return;
+    createTag.mutate(
+      { data: { name, color: newTagColor } },
+      {
+        onSuccess: () => {
+          invalidateTags();
+          setNewTagName("");
+          setNewTagColor(TAG_COLORS[0]);
+          setShowNewForm(false);
+          toast.success("Tag created");
+        },
+        onError: () => toast.error("Failed to create tag"),
+      },
+    );
+  };
 
   return (
     <div className="mt-1" onClick={e => e.stopPropagation()}>
@@ -80,25 +105,60 @@ function TagPicker({ taskId, assignedTagIds }: { taskId: number; assignedTagIds:
         {showPicker ? "Hide tags" : "Manage tags"}
       </button>
       {showPicker && (
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {allTags.map(tag => {
-            const active = assignedTagIds.includes(tag.id);
-            return (
-              <button
-                key={tag.id}
-                onClick={() => toggle(tag.id)}
-                className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-all ${
-                  active
-                    ? "border-transparent text-white"
-                    : "border-border text-muted-foreground hover:border-foreground/30"
-                }`}
-                style={active ? { backgroundColor: tag.color } : {}}
-              >
-                {active && <X className="w-2.5 h-2.5" />}
-                {tag.name}
-              </button>
-            );
-          })}
+        <div className="mt-2 space-y-2">
+          {allTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {allTags.map(tag => {
+                const active = assignedTagIds.includes(tag.id);
+                return (
+                  <button
+                    key={tag.id}
+                    onClick={() => toggle(tag.id)}
+                    className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-all ${
+                      active
+                        ? "border-transparent text-white"
+                        : "border-border text-muted-foreground hover:border-foreground/30"
+                    }`}
+                    style={active ? { backgroundColor: tag.color } : {}}
+                  >
+                    {active && <X className="w-2.5 h-2.5" />}
+                    {tag.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {!showNewForm ? (
+            <button
+              onClick={() => setShowNewForm(true)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Plus className="w-3 h-3" /> New tag
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div className="flex gap-1">
+                {TAG_COLORS.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setNewTagColor(c)}
+                    className={`w-4 h-4 rounded-full border-2 transition-all ${newTagColor === c ? "border-foreground" : "border-transparent"}`}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+              <input
+                autoFocus
+                value={newTagName}
+                onChange={e => setNewTagName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleCreateTag(); if (e.key === "Escape") setShowNewForm(false); }}
+                placeholder="Tag name…"
+                className="flex-1 text-xs px-2 py-0.5 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button onClick={handleCreateTag} className="text-xs text-primary hover:underline">Add</button>
+              <button onClick={() => setShowNewForm(false)} className="text-xs text-muted-foreground hover:underline">Cancel</button>
+            </div>
+          )}
         </div>
       )}
     </div>
