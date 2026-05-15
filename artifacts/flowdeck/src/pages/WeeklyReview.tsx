@@ -1,35 +1,22 @@
-import { useMemo } from "react";
-import { useGetWeeklyReview } from "@workspace/api-client-react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { Link } from "wouter";
+import { useGetWeeklyReview, useListTasks } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  LineChart,
-  Line,
-  ReferenceLine,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  LineChart, Line, ReferenceLine,
 } from "recharts";
 import {
-  Flame,
-  Target,
-  Timer,
-  CheckSquare,
-  TrendingUp,
-  Smile,
-  Star,
-  Award,
+  Flame, Target, Timer, CheckSquare, TrendingUp, Smile, Star, Award,
+  PenLine, Check, AlertCircle,
 } from "lucide-react";
 
+// ── constants ─────────────────────────────────────────────────────────────────
 const MOOD_EMOJI: Record<number, string> = { 1: "😞", 2: "😕", 3: "😐", 4: "🙂", 5: "😄" };
-const MOOD_LABEL: Record<number, string> = {
-  1: "Rough", 2: "Low", 3: "Okay", 4: "Good", 5: "Great",
-};
+const MOOD_LABEL: Record<number, string> = { 1: "Rough", 2: "Low", 3: "Okay", 4: "Good", 5: "Great" };
 
 function moodColor(mood: number | null) {
   if (!mood) return "hsl(215,16%,75%)";
@@ -46,19 +33,17 @@ function scoreLabel(score: number) {
 }
 
 function fmt(dateStr: string) {
-  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
+  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  color = "text-primary",
-}: {
+function priorityDot(p: string) {
+  if (p === "high") return "bg-red-500";
+  if (p === "medium") return "bg-orange-400";
+  return "bg-gray-400";
+}
+
+// ── StatCard ──────────────────────────────────────────────────────────────────
+function StatCard({ icon: Icon, label, value, sub, color = "text-primary" }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string | number;
@@ -83,6 +68,155 @@ function StatCard({
   );
 }
 
+// ── Reflection notes ──────────────────────────────────────────────────────────
+const STORAGE_KEY = "flowdeck_weekly_reflection";
+
+function loadReflection(weekStart: string): string {
+  try {
+    const store = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    return store[weekStart] ?? "";
+  } catch { return ""; }
+}
+
+function saveReflection(weekStart: string, text: string) {
+  try {
+    const store = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    store[weekStart] = text;
+    // Keep only last 12 weeks to avoid bloat
+    const keys = Object.keys(store).sort().reverse();
+    for (const k of keys.slice(12)) delete store[k];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  } catch { /* ignore */ }
+}
+
+function ReflectionPanel({ weekStart }: { weekStart: string }) {
+  const [text, setText] = useState(() => loadReflection(weekStart));
+  const [saved, setSaved] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleChange = useCallback((val: string) => {
+    setText(val);
+    setSaved(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      saveReflection(weekStart, val);
+      setSaved(true);
+      timerRef.current = setTimeout(() => setSaved(false), 2000);
+    }, 800);
+  }, [weekStart]);
+
+  useEffect(() => {
+    setText(loadReflection(weekStart));
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [weekStart]);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2 pt-4 px-5">
+        <CardTitle className="text-sm font-semibold flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <PenLine className="w-4 h-4 text-primary" /> Weekly reflection
+          </span>
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-normal">
+              <Check className="w-3 h-3" /> Saved
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-5 pb-5">
+        <Textarea
+          value={text}
+          onChange={e => handleChange(e.target.value)}
+          placeholder="What went well this week? What do you want to do differently? Any wins worth celebrating?"
+          className="resize-none text-sm min-h-[120px] focus-visible:ring-primary/50"
+          rows={5}
+        />
+        <p className="text-xs text-muted-foreground mt-2">
+          Saved automatically · Stored locally in your browser per week
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Pending tasks callout ─────────────────────────────────────────────────────
+function PendingTasksPanel({ weekEnd }: { weekEnd: string }) {
+  const { data: tasks } = useListTasks();
+  const today = new Date().toISOString().split("T")[0];
+
+  const overdue = useMemo(() => {
+    if (!tasks) return [];
+    return tasks
+      .filter(t => t.status === "pending" && t.dueDate && t.dueDate <= today)
+      .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""))
+      .slice(0, 8);
+  }, [tasks, today]);
+
+  const dueThisWeek = useMemo(() => {
+    if (!tasks) return [];
+    return tasks
+      .filter(t => t.status === "pending" && t.dueDate && t.dueDate > today && t.dueDate <= weekEnd)
+      .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""))
+      .slice(0, 8);
+  }, [tasks, weekEnd, today]);
+
+  if (!overdue.length && !dueThisWeek.length) return null;
+
+  return (
+    <Card className="border-amber-200 dark:border-amber-800/40">
+      <CardHeader className="pb-2 pt-4 px-5">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-500" /> Open tasks to address
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-5 pb-4 space-y-4">
+        {overdue.length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-red-500 uppercase tracking-wide mb-2">Overdue</p>
+            <ul className="space-y-1.5">
+              {overdue.map(t => (
+                <li key={t.id} className="flex items-center gap-2 text-sm">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${priorityDot(t.priority)}`} />
+                  <Link href="/tasks">
+                    <span className="text-foreground hover:text-primary cursor-pointer transition-colors line-clamp-1">
+                      {t.title}
+                    </span>
+                  </Link>
+                  {t.dueDate && (
+                    <span className="ml-auto text-xs text-red-500 flex-shrink-0">{fmt(t.dueDate)}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {dueThisWeek.length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-2">Due this week</p>
+            <ul className="space-y-1.5">
+              {dueThisWeek.map(t => (
+                <li key={t.id} className="flex items-center gap-2 text-sm">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${priorityDot(t.priority)}`} />
+                  <Link href="/tasks">
+                    <span className="text-foreground hover:text-primary cursor-pointer transition-colors line-clamp-1">
+                      {t.title}
+                    </span>
+                  </Link>
+                  {t.dueDate && (
+                    <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">{fmt(t.dueDate)}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function WeeklyReview() {
   const { data, isLoading } = useGetWeeklyReview();
 
@@ -92,21 +226,19 @@ export default function WeeklyReview() {
   );
 
   const habitData = useMemo(
-    () =>
-      data?.days.map(d => ({
-        day: d.day,
-        pct: d.habitsTotal > 0 ? Math.round((d.habitsCompleted / d.habitsTotal) * 100) : 0,
-      })) ?? [],
+    () => data?.days.map(d => ({
+      day: d.day,
+      pct: d.habitsTotal > 0 ? Math.round((d.habitsCompleted / d.habitsTotal) * 100) : 0,
+    })) ?? [],
     [data],
   );
 
   const moodData = useMemo(
-    () =>
-      data?.days.map(d => ({
-        day: d.day,
-        mood: d.mood,
-        label: d.mood ? MOOD_EMOJI[d.mood] : "—",
-      })) ?? [],
+    () => data?.days.map(d => ({
+      day: d.day,
+      mood: d.mood,
+      label: d.mood ? MOOD_EMOJI[d.mood] : "—",
+    })) ?? [],
     [data],
   );
 
@@ -125,6 +257,7 @@ export default function WeeklyReview() {
         <div className="grid md:grid-cols-2 gap-4">
           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-52" />)}
         </div>
+        <Skeleton className="h-40" />
       </div>
     );
   }
@@ -144,7 +277,6 @@ export default function WeeklyReview() {
             {fmt(weekStart)} — {fmt(weekEnd)}
           </p>
         </div>
-        {/* Score badge */}
         <div className="flex items-center gap-3 bg-card border border-border rounded-xl px-5 py-3 shadow-sm">
           <div className="text-right">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Weekly score</p>
@@ -172,12 +304,7 @@ export default function WeeklyReview() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={CheckSquare}
-          label="Tasks done"
-          value={tasksCompletedCount}
-          sub="this week"
-        />
+        <StatCard icon={CheckSquare} label="Tasks done" value={tasksCompletedCount} sub="this week" />
         <StatCard
           icon={Timer}
           label="Focus time"
@@ -225,17 +352,13 @@ export default function WeeklyReview() {
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                 <span>Completion</span>
                 <span>
-                  {activeGoals.total > 0
-                    ? Math.round((activeGoals.completed / activeGoals.total) * 100)
-                    : 0}%
+                  {activeGoals.total > 0 ? Math.round((activeGoals.completed / activeGoals.total) * 100) : 0}%
                 </span>
               </div>
               <div className="h-2 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{
-                    width: `${activeGoals.total > 0 ? Math.round((activeGoals.completed / activeGoals.total) * 100) : 0}%`,
-                  }}
+                  style={{ width: `${activeGoals.total > 0 ? Math.round((activeGoals.completed / activeGoals.total) * 100) : 0}%` }}
                 />
               </div>
             </div>
@@ -260,10 +383,7 @@ export default function WeeklyReview() {
                 <Tooltip formatter={(v: number) => [`${v}%`, "Completion"]} cursor={{ fill: "hsl(var(--muted))" }} />
                 <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
                   {habitData.map((entry, i) => (
-                    <Cell
-                      key={i}
-                      fill={entry.pct >= 80 ? "hsl(189,88%,28%)" : entry.pct >= 50 ? "hsl(189,70%,50%)" : "hsl(189,40%,75%)"}
-                    />
+                    <Cell key={i} fill={entry.pct >= 80 ? "hsl(189,88%,28%)" : entry.pct >= 50 ? "hsl(189,70%,50%)" : "hsl(189,40%,75%)"} />
                   ))}
                 </Bar>
               </BarChart>
@@ -318,12 +438,9 @@ export default function WeeklyReview() {
                     return (
                       <circle
                         key={props.key}
-                        cx={cx}
-                        cy={cy}
-                        r={5}
+                        cx={cx} cy={cy} r={5}
                         fill={moodColor(payload.mood)}
-                        stroke="white"
-                        strokeWidth={2}
+                        stroke="white" strokeWidth={2}
                       />
                     );
                   }}
@@ -331,7 +448,6 @@ export default function WeeklyReview() {
                 />
               </LineChart>
             </ResponsiveContainer>
-            {/* Emoji legend */}
             <div className="flex justify-between mt-2 px-1">
               {moodData.map((d, i) => (
                 <span key={i} className="text-sm text-center w-8" title={d.mood ? MOOD_LABEL[d.mood] : "No entry"}>
@@ -418,6 +534,12 @@ export default function WeeklyReview() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pending tasks callout */}
+      <PendingTasksPanel weekEnd={weekEnd} />
+
+      {/* Weekly reflection */}
+      <ReflectionPanel weekStart={weekStart} />
     </div>
   );
 }
