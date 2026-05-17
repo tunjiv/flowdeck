@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -24,18 +25,37 @@ if (domain) {
   setBaseUrl(`https://${domain}`);
 }
 
-// Clerk Expo secure token cache
-const tokenCache = {
-  async getToken(key: string) {
-    return SecureStore.getItemAsync(key);
-  },
-  async saveToken(key: string, value: string) {
-    return SecureStore.setItemAsync(key, value);
-  },
-  async clearToken(key: string) {
-    return SecureStore.deleteItemAsync(key);
-  },
-};
+// Platform-safe token cache: localStorage on web, SecureStore on native
+const tokenCache =
+  Platform.OS === "web"
+    ? {
+        async getToken(key: string) {
+          return typeof window !== "undefined"
+            ? window.localStorage.getItem(key)
+            : null;
+        },
+        async saveToken(key: string, value: string) {
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(key, value);
+          }
+        },
+        async clearToken(key: string) {
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem(key);
+          }
+        },
+      }
+    : {
+        async getToken(key: string) {
+          return SecureStore.getItemAsync(key);
+        },
+        async saveToken(key: string, value: string) {
+          return SecureStore.setItemAsync(key, value);
+        },
+        async clearToken(key: string) {
+          return SecureStore.deleteItemAsync(key);
+        },
+      };
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
 
