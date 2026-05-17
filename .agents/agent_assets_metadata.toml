@@ -1,5 +1,10 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "uMO5DiaI1YoOQhORDGT-N"
+uri = "file://artifacts/flowdeck-mobile/assets/images/icon.png"
+type = "image"
+title = "flowdeck mobile app icon"
 
 [[outputs]]
 id = "3SGg9xCPDRz8S8MNfcnzu"
