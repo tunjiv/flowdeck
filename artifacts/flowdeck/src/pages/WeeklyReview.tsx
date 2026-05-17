@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "wouter";
-import { useGetWeeklyReview, useListTasks } from "@workspace/api-client-react";
+import { useGetWeeklyReview, useListTasks, useCompleteTask, getListTasksQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -142,8 +143,19 @@ function ReflectionPanel({ weekStart }: { weekStart: string }) {
 
 // ── Pending tasks callout ─────────────────────────────────────────────────────
 function PendingTasksPanel({ weekEnd }: { weekEnd: string }) {
+  const qc = useQueryClient();
   const { data: tasks } = useListTasks();
-  const today = new Date().toISOString().split("T")[0];
+  const completeTask = useCompleteTask();
+  const today = new Date().toISOString().split("T")[0]!;
+  const [completedIds, setCompletedIds] = useState<Set<number>>(new Set());
+
+  const handleComplete = (id: number) => {
+    setCompletedIds(prev => new Set(prev).add(id));
+    completeTask.mutate({ id }, {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getListTasksQueryKey() }),
+      onError: () => setCompletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }),
+    });
+  };
 
   const overdue = useMemo(() => {
     if (!tasks) return [];
@@ -175,19 +187,27 @@ function PendingTasksPanel({ weekEnd }: { weekEnd: string }) {
           <div>
             <p className="text-xs font-medium text-red-500 uppercase tracking-wide mb-2">Overdue</p>
             <ul className="space-y-1.5">
-              {overdue.map(t => (
-                <li key={t.id} className="flex items-center gap-2 text-sm">
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${priorityDot(t.priority)}`} />
-                  <Link href="/tasks">
-                    <span className="text-foreground hover:text-primary cursor-pointer transition-colors line-clamp-1">
+              {overdue.map(t => {
+                const done = completedIds.has(t.id);
+                return (
+                  <li key={t.id} className={`flex items-center gap-2 text-sm transition-opacity ${done ? "opacity-40" : ""}`}>
+                    <button
+                      onClick={() => !done && handleComplete(t.id)}
+                      disabled={done}
+                      className="w-4 h-4 rounded-full border-2 border-red-300 hover:border-red-500 flex-shrink-0 flex items-center justify-center transition-colors disabled:cursor-default"
+                      title="Mark complete"
+                    >
+                      {done && <span className="w-2 h-2 rounded-full bg-green-500 block" />}
+                    </button>
+                    <span className={`flex-1 text-foreground line-clamp-1 ${done ? "line-through text-muted-foreground" : ""}`}>
                       {t.title}
                     </span>
-                  </Link>
-                  {t.dueDate && (
-                    <span className="ml-auto text-xs text-red-500 flex-shrink-0">{fmt(t.dueDate)}</span>
-                  )}
-                </li>
-              ))}
+                    {t.dueDate && (
+                      <span className="ml-auto text-xs text-red-500 flex-shrink-0">{fmt(t.dueDate)}</span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
@@ -195,19 +215,27 @@ function PendingTasksPanel({ weekEnd }: { weekEnd: string }) {
           <div>
             <p className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-2">Due this week</p>
             <ul className="space-y-1.5">
-              {dueThisWeek.map(t => (
-                <li key={t.id} className="flex items-center gap-2 text-sm">
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${priorityDot(t.priority)}`} />
-                  <Link href="/tasks">
-                    <span className="text-foreground hover:text-primary cursor-pointer transition-colors line-clamp-1">
+              {dueThisWeek.map(t => {
+                const done = completedIds.has(t.id);
+                return (
+                  <li key={t.id} className={`flex items-center gap-2 text-sm transition-opacity ${done ? "opacity-40" : ""}`}>
+                    <button
+                      onClick={() => !done && handleComplete(t.id)}
+                      disabled={done}
+                      className="w-4 h-4 rounded-full border-2 border-border hover:border-primary flex-shrink-0 flex items-center justify-center transition-colors disabled:cursor-default"
+                      title="Mark complete"
+                    >
+                      {done && <span className="w-2 h-2 rounded-full bg-green-500 block" />}
+                    </button>
+                    <span className={`flex-1 text-foreground line-clamp-1 ${done ? "line-through text-muted-foreground" : ""}`}>
                       {t.title}
                     </span>
-                  </Link>
-                  {t.dueDate && (
-                    <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">{fmt(t.dueDate)}</span>
-                  )}
-                </li>
-              ))}
+                    {t.dueDate && (
+                      <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">{fmt(t.dueDate)}</span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}

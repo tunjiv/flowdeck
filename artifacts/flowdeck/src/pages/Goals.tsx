@@ -9,7 +9,7 @@ import {
   getListGoalsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Target, ChevronRight, Trash2, MoreHorizontal, TrendingUp } from "lucide-react";
+import { Plus, Target, ChevronRight, Trash2, MoreHorizontal, TrendingUp, CheckCircle2, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -33,7 +33,7 @@ const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
   completed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   paused: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-  abandoned: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+  archived: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
 
 const priorityColors: Record<string, string> = {
@@ -70,6 +70,7 @@ function GoalForm({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [goalType, setGoalType] = useState(initial?.goalType ?? "quantitative");
   const [priority, setPriority] = useState(initial?.priority ?? "medium");
+  const [status, setStatus] = useState(initial?.status ?? "active");
   const [targetValue, setTargetValue] = useState(String(initial?.targetValue ?? ""));
   const [currentValue, setCurrentValue] = useState(String(initial?.currentValue ?? "0"));
   const [categoryId, setCategoryId] = useState(String(initial?.categoryId ?? ""));
@@ -82,6 +83,7 @@ function GoalForm({
       description: description.trim() || undefined,
       goalType: goalType as "quantitative" | "milestone" | "habit",
       priority: priority as "high" | "medium" | "low",
+      status: status as "active" | "completed" | "paused" | "archived",
       targetValue: targetValue ? Number(targetValue) : undefined,
       currentValue: currentValue ? Number(currentValue) : 0,
       categoryId: categoryId ? Number(categoryId) : undefined,
@@ -148,6 +150,19 @@ function GoalForm({
               </Select>
             </div>
           </div>
+          {/* Status is always editable */}
+          <div>
+            <Label>Status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="paused">Paused</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {goalType === "quantitative" && (
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -213,10 +228,7 @@ function QuickProgressInput({ goal }: {
     if (!delta || isNaN(n)) return;
     const newValue = (goal.currentValue ?? 0) + n;
     update.mutate(
-      {
-        id: goal.id,
-        data: { currentValue: newValue },
-      },
+      { id: goal.id, data: { currentValue: newValue } },
       {
         onSuccess: (updated) => {
           qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
@@ -269,6 +281,7 @@ export default function Goals() {
   const qc = useQueryClient();
   const { data: goals, isLoading } = useListGoals();
   const deleteGoal = useDeleteGoal();
+  const updateGoal = useUpdateGoal();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editGoal, setEditGoal] = useState<typeof goals extends Array<infer T> ? T : any | null>(null);
@@ -279,6 +292,14 @@ export default function Goals() {
 
   const filtered = goals?.filter(g => filterStatus === "all" || g.status === filterStatus) ?? [];
 
+  // Sort by due date: goals with a date come first (ascending), then undated goals
+  const sorted = [...filtered].sort((a, b) => {
+    if (!a.targetEndDate && !b.targetEndDate) return 0;
+    if (!a.targetEndDate) return 1;
+    if (!b.targetEndDate) return -1;
+    return a.targetEndDate.localeCompare(b.targetEndDate);
+  });
+
   const handleDelete = (id: number) => {
     if (!confirm("Delete this goal?")) return;
     deleteGoal.mutate({ id }, {
@@ -286,6 +307,17 @@ export default function Goals() {
         qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
         toast.success("Goal deleted");
       },
+    });
+  };
+
+  const handleToggleComplete = (goal: NonNullable<typeof goals>[number]) => {
+    const newStatus = goal.status === "completed" ? "active" : "completed";
+    updateGoal.mutate({ id: goal.id, data: { status: newStatus } }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
+        toast.success(newStatus === "completed" ? "Goal marked complete 🎉" : "Goal reopened");
+      },
+      onError: () => toast.error("Failed to update goal"),
     });
   };
 
@@ -315,6 +347,11 @@ export default function Goals() {
             }`}
           >
             {s}
+            {s !== "all" && goals && (
+              <span className="ml-1 opacity-60">
+                ({goals.filter(g => g.status === s).length})
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -323,21 +360,31 @@ export default function Goals() {
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="text-center py-16">
           <Target className="w-12 h-12 text-muted mx-auto mb-3" />
-          <h3 className="font-semibold text-foreground mb-1">No goals yet</h3>
-          <p className="text-sm text-muted-foreground mb-4">Set your first goal and start making progress.</p>
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus className="w-4 h-4 mr-1.5" /> Create your first goal
-          </Button>
+          <h3 className="font-semibold text-foreground mb-1">
+            {filterStatus === "all" ? "No goals yet" : `No ${filterStatus} goals`}
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            {filterStatus === "all"
+              ? "Set your first goal and start making progress."
+              : `You have no goals with "${filterStatus}" status.`}
+          </p>
+          {filterStatus === "all" && (
+            <Button onClick={() => setFormOpen(true)}>
+              <Plus className="w-4 h-4 mr-1.5" /> Create your first goal
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(goal => {
+          {sorted.map(goal => {
             const pct = goal.targetValue && goal.targetValue > 0
               ? Math.min(100, Math.round(((goal.currentValue ?? 0) / goal.targetValue) * 100))
               : 0;
+
+            const isCompleted = goal.status === "completed";
 
             // Milestone ring color
             const milestoneColor =
@@ -348,15 +395,24 @@ export default function Goals() {
               "text-muted-foreground";
 
             return (
-              <Card key={goal.id} data-testid={`goal-${goal.id}`} className="border-border hover:shadow-sm transition-shadow">
+              <Card key={goal.id} data-testid={`goal-${goal.id}`} className={`border-border hover:shadow-sm transition-shadow ${isCompleted ? "opacity-70" : ""}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Target className="w-5 h-5 text-primary" />
-                    </div>
+                    {/* Completion checkbox */}
+                    <button
+                      onClick={() => handleToggleComplete(goal)}
+                      className="mt-0.5 flex-shrink-0 transition-colors"
+                      title={isCompleted ? "Mark as active" : "Mark as complete"}
+                      disabled={updateGoal.isPending}
+                    >
+                      {isCompleted
+                        ? <CheckCircle2 className="w-5 h-5 text-primary" />
+                        : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />}
+                    </button>
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                        <span className="font-semibold text-foreground">{goal.title}</span>
+                        <span className={`font-semibold text-foreground ${isCompleted ? "line-through" : ""}`}>{goal.title}</span>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[goal.status]}`}>
                           {goal.status}
                         </span>
@@ -405,6 +461,11 @@ export default function Goals() {
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            onClick={() => handleToggleComplete(goal)}
+                          >
+                            {isCompleted ? "Reopen goal" : "Mark complete"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => handleDelete(goal.id)}
                           >
@@ -421,7 +482,9 @@ export default function Goals() {
         </div>
       )}
 
+      {/* key prop ensures form re-initializes correctly when switching between edit targets */}
       <GoalForm
+        key={editGoal?.id ?? "new"}
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditGoal(null); }}
         initial={editGoal ?? undefined}

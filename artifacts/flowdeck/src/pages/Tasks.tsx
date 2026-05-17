@@ -629,7 +629,9 @@ export default function Tasks() {
         </div>
       )}
 
+      {/* key prop ensures form re-initializes correctly when switching between edit targets */}
       <TaskForm
+        key={editTask?.id ?? "new"}
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditTask(null); }}
         initial={editTask ?? undefined}
