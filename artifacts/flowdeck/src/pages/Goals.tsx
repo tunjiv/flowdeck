@@ -4,6 +4,7 @@ import {
   useListGoals, useCreateGoal, useUpdateGoal, useDeleteGoal, useListCategories,
   getListGoalsQueryKey,
 } from "@workspace/api-client-react";
+import type { Goal } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Target, ChevronRight, Trash2, MoreHorizontal,
@@ -301,7 +302,7 @@ function GoalForm({
 function GoalCard({
   goal, overdue, onToggleComplete, onEdit, onDelete, isPending,
 }: {
-  goal: any;
+  goal: Goal;
   overdue: boolean;
   onToggleComplete: () => void;
   onEdit: () => void;
@@ -446,18 +447,19 @@ export default function Goals() {
   }, [filtered, filters.sortBy, filters.sortDir]);
 
   // ── Section grouping ─────────────────────────────────────────────────────
-  const overdueGoals     = sorted.filter(g => isGoalOverdue(g));
+  const overdueGoals = sorted.filter(g => isGoalOverdue(g));
   const dueThisWeekGoals = sorted.filter(g =>
     !isGoalOverdue(g) &&
     g.status === "active" &&
     !!(g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd)
   );
-  const completedGoals   = sorted.filter(g => g.status === "completed");
-  // Catch-all: everything that isn't overdue, due-this-week, or completed
-  // (includes active goals beyond this week, plus paused and archived)
+  const completedGoals = sorted.filter(g => g.status === "completed");
+  // Active includes status=active (not overdue / not due-this-week) and
+  // status=paused goals so they remain visible rather than disappearing.
+  // Archived goals are intentionally excluded from all sections.
   const activeGoals = sorted.filter(g =>
     !isGoalOverdue(g) &&
-    g.status !== "completed" &&
+    (g.status === "active" || g.status === "paused") &&
     !(g.status === "active" && g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd)
   );
 
