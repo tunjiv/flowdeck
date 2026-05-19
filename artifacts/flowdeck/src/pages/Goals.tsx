@@ -450,14 +450,16 @@ export default function Goals() {
   const dueThisWeekGoals = sorted.filter(g =>
     !isGoalOverdue(g) &&
     g.status === "active" &&
-    g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd
-  );
-  const activeGoals      = sorted.filter(g =>
-    !isGoalOverdue(g) &&
-    g.status === "active" &&
-    !(g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd)
+    !!(g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd)
   );
   const completedGoals   = sorted.filter(g => g.status === "completed");
+  // Catch-all: everything that isn't overdue, due-this-week, or completed
+  // (includes active goals beyond this week, plus paused and archived)
+  const activeGoals = sorted.filter(g =>
+    !isGoalOverdue(g) &&
+    g.status !== "completed" &&
+    !(g.status === "active" && g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd)
+  );
 
   const isFiltered =
     filters.search !== "" || !filters.statuses.includes("all") ||
