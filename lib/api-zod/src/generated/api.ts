@@ -125,6 +125,7 @@ export const CreateGoalBody = zod.object({
   goalType: zod.enum(["quantitative", "habit", "milestone"]),
   priority: zod.enum(["high", "medium", "low"]),
   targetValue: zod.number().optional(),
+  currentValue: zod.number().optional(),
   startDate: zod.string().optional(),
   targetEndDate: zod.string().optional(),
   notes: zod.string().optional(),

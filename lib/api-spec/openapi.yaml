@@ -1169,6 +1169,8 @@ components:
           enum: [high, medium, low]
         targetValue:
           type: number
+        currentValue:
+          type: number
         startDate:
           type: string
         targetEndDate:

@@ -112,6 +112,7 @@ export interface GoalInput {
   goalType: GoalInputGoalType;
   priority: GoalInputPriority;
   targetValue?: number;
+  currentValue?: number;
   startDate?: string;
   targetEndDate?: string;
   notes?: string;

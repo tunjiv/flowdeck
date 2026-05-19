@@ -298,18 +298,108 @@ function GoalForm({
   );
 }
 
+// ── ProgressRing ──────────────────────────────────────────────────────────────
+function ProgressRing({
+  pct,
+  size = 24,
+  onClick,
+  disabled,
+}: {
+  pct: number;
+  size?: number;
+  onClick?: (e: React.MouseEvent) => void;
+  disabled?: boolean;
+}) {
+  const strokeWidth = 2.5;
+  const radius = (size - strokeWidth * 2) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.min(100, Math.max(0, pct));
+  const offset = circumference * (1 - clamped / 100);
+  const isComplete = clamped >= 100;
+  const isEmpty = clamped <= 0;
+
+  const label = `${Math.round(clamped)}% complete${disabled ? "" : " — click to log progress"}`;
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={`flex-shrink-0 rounded-full transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${disabled ? "cursor-default" : "hover:scale-110"}`}
+    >
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ transform: "rotate(-90deg)" }}
+        aria-hidden="true"
+      >
+        {/* Track */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          className="text-muted-foreground/25"
+        />
+        {/* Progress arc — teal-500 when complete, primary when partial */}
+        {!isEmpty && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={isComplete ? 0 : offset}
+            className={isComplete ? "text-teal-500" : "text-primary"}
+          />
+        )}
+      </svg>
+    </button>
+  );
+}
+
 // ── GoalCard ──────────────────────────────────────────────────────────────────
 function GoalCard({
-  goal, overdue, onToggleComplete, onEdit, onDelete, isPending,
+  goal, overdue, onToggleComplete, onEdit, onDelete, onUpdateProgress, isPending,
 }: {
   goal: Goal;
   overdue: boolean;
   onToggleComplete: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onUpdateProgress?: (value: number) => void;
   isPending: boolean;
 }) {
   const isCompleted = goal.status === "completed";
+  const isQuantitative = goal.goalType === "quantitative";
+  const pct =
+    isQuantitative && goal.targetValue
+      ? ((goal.currentValue ?? 0) / goal.targetValue) * 100
+      : 0;
+
+  const [logOpen, setLogOpen] = useState(false);
+  const [logValue, setLogValue] = useState("");
+
+  const openLog = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setLogValue(String(goal.currentValue ?? 0));
+    setLogOpen(v => !v);
+  };
+
+  const handleSaveLog = () => {
+    const val = Number(logValue);
+    if (isNaN(val)) { toast.error("Enter a valid number"); return; }
+    onUpdateProgress?.(val);
+    setLogOpen(false);
+    setLogValue("");
+  };
 
   return (
     <Card
@@ -332,8 +422,15 @@ function GoalCard({
 
           {/* Body */}
           <div className="flex-1 min-w-0">
-            {/* Title + badges */}
+            {/* Title + ring + badges */}
             <div className="flex items-center gap-2 flex-wrap">
+              {isQuantitative && (
+                <ProgressRing
+                  pct={pct}
+                  onClick={isCompleted ? undefined : openLog}
+                  disabled={isCompleted}
+                />
+              )}
               <span className={`font-semibold text-foreground ${isCompleted ? "line-through text-muted-foreground" : ""}`}>
                 {goal.title}
               </span>
@@ -347,6 +444,33 @@ function GoalCard({
               <p className={`text-xs mt-1.5 ${overdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
                 {overdue ? "Was due" : "Due"} {goal.targetEndDate}
               </p>
+            )}
+
+            {/* Inline quick-log */}
+            {logOpen && (
+              <div className="mt-2 flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={logValue}
+                  onChange={e => setLogValue(e.target.value)}
+                  placeholder={String(goal.currentValue ?? 0)}
+                  className="h-7 w-28 text-sm"
+                  autoFocus
+                  onKeyDown={e => {
+                    if (e.key === "Enter") handleSaveLog();
+                    if (e.key === "Escape") setLogOpen(false);
+                  }}
+                />
+                {goal.targetValue != null && (
+                  <span className="text-xs text-muted-foreground">/ {goal.targetValue}</span>
+                )}
+                <Button size="sm" className="h-7 px-3 text-xs" onClick={handleSaveLog} disabled={isPending}>
+                  Save
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 px-3 text-xs" onClick={() => setLogOpen(false)}>
+                  Cancel
+                </Button>
+              </div>
             )}
           </div>
 
@@ -506,6 +630,15 @@ export default function Goals() {
     onToggleComplete: () => handleToggleComplete(goal),
     onEdit: () => { setEditGoal(goal); setFormOpen(true); },
     onDelete: () => handleDelete(goal.id),
+    onUpdateProgress: (value: number) => {
+      updateGoal.mutate({ id: goal.id, data: { currentValue: value } }, {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
+          toast.success("Progress updated");
+        },
+        onError: () => toast.error("Failed to update progress"),
+      });
+    },
     isPending: updateGoal.isPending,
   });
 
