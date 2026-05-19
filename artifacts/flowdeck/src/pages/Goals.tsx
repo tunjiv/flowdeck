@@ -7,7 +7,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Target, ChevronRight, Trash2, MoreHorizontal, TrendingUp,
-  CheckCircle2, Circle, Filter, X, Search, ArrowUp, ArrowDown, AlertTriangle,
+  CheckCircle2, Circle, Filter, X, Search, Check, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,19 +31,23 @@ import { useLocalStorage } from "@/lib/useLocalStorage";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
-const STATUS_RANK: Record<string, number> = { active: 0, paused: 1, completed: 2, archived: 3 };
 
-const statusColors: Record<string, string> = {
-  active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-  completed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  paused: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-  archived: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-};
 const priorityColors: Record<string, string> = {
   high: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   medium: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   low: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
+
+const SORT_OPTIONS = [
+  { label: "Due date — soonest", sortBy: "dueDate" as const, sortDir: "asc" as const },
+  { label: "Due date — latest",  sortBy: "dueDate" as const, sortDir: "desc" as const },
+  { label: "Priority — highest", sortBy: "priority" as const, sortDir: "asc" as const },
+  { label: "Alphabetical",       sortBy: "title" as const,   sortDir: "asc" as const },
+  { label: "Recently created",   sortBy: "createdAt" as const, sortDir: "desc" as const },
+] as const;
+
+type SortBy = (typeof SORT_OPTIONS)[number]["sortBy"];
+type SortDir = "asc" | "desc";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toggleMulti(current: string[], value: string): string[] {
@@ -86,8 +90,8 @@ type GoalFilters = {
   dateStart: string;
   dateEnd: string;
   dateExact: string;
-  sortBy: "dueDate" | "createdAt" | "priority" | "title" | "status";
-  sortDir: "asc" | "desc";
+  sortBy: SortBy | "status";
+  sortDir: SortDir;
 };
 
 const DEFAULT_FILTERS: GoalFilters = {
@@ -102,6 +106,44 @@ const DEFAULT_FILTERS: GoalFilters = {
   sortBy: "dueDate",
   sortDir: "asc",
 };
+
+// ── GoalSection ───────────────────────────────────────────────────────────────
+function GoalSection({
+  label, count, collapsible = false, open, onToggle, children,
+}: {
+  label: string;
+  count: number;
+  collapsible?: boolean;
+  open?: boolean;
+  onToggle?: () => void;
+  children: React.ReactNode;
+}) {
+  if (count === 0) return null;
+  const isOpen = !collapsible || open;
+
+  return (
+    <div className="space-y-2">
+      <button
+        className={`flex items-center gap-2 w-full text-left ${collapsible ? "cursor-pointer" : "cursor-default"}`}
+        onClick={collapsible ? onToggle : undefined}
+        disabled={!collapsible}
+      >
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
+        <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+          {count}
+        </span>
+        {collapsible && (
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-muted-foreground ml-auto transition-transform ${isOpen ? "rotate-180" : ""}`}
+          />
+        )}
+      </button>
+      {isOpen && <div className="space-y-2">{children}</div>}
+    </div>
+  );
+}
 
 // ── GoalForm ──────────────────────────────────────────────────────────────────
 function GoalForm({
@@ -305,6 +347,103 @@ function QuickProgressInput({ goal }: {
   );
 }
 
+// ── GoalCard ──────────────────────────────────────────────────────────────────
+function GoalCard({
+  goal, overdue, onToggleComplete, onEdit, onDelete, isPending,
+}: {
+  goal: any;
+  overdue: boolean;
+  onToggleComplete: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  isPending: boolean;
+}) {
+  const isCompleted = goal.status === "completed";
+  const pct = goal.targetValue && goal.targetValue > 0
+    ? Math.min(100, Math.round(((goal.currentValue ?? 0) / goal.targetValue) * 100))
+    : 0;
+
+  return (
+    <Card
+      data-testid={`goal-${goal.id}`}
+      className={`border-border hover:shadow-sm transition-shadow ${isCompleted ? "opacity-60" : ""} ${overdue ? "border-l-4 border-l-red-400" : ""}`}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          {/* Completion toggle */}
+          <button
+            onClick={onToggleComplete}
+            className="mt-0.5 flex-shrink-0 transition-colors"
+            title={isCompleted ? "Mark as active" : "Mark as complete"}
+            disabled={isPending}
+          >
+            {isCompleted
+              ? <CheckCircle2 className="w-5 h-5 text-primary" />
+              : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />}
+          </button>
+
+          {/* Body */}
+          <div className="flex-1 min-w-0">
+            {/* Title + badges */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`font-semibold text-foreground ${isCompleted ? "line-through text-muted-foreground" : ""}`}>
+                {goal.title}
+              </span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${priorityColors[goal.priority]}`}>
+                {goal.priority}
+              </span>
+            </div>
+
+            {/* Progress (quantitative goals) */}
+            {goal.goalType === "quantitative" && (
+              <div className="mt-2">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                  <span>{goal.currentValue ?? 0} / {goal.targetValue ?? "—"}</span>
+                  <span className="font-medium">{pct}%</span>
+                </div>
+                <Progress value={pct} className="h-1.5" />
+                {goal.status === "active" && <QuickProgressInput goal={goal} />}
+              </div>
+            )}
+
+            {/* Due date */}
+            {goal.targetEndDate && (
+              <p className={`text-xs mt-1.5 ${overdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                {overdue ? "Was due" : "Due"} {goal.targetEndDate}
+              </p>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Link href={`/goals/${goal.id}`}>
+              <Button variant="ghost" size="icon" className="h-7 w-7">
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`goal-menu-${goal.id}`}>
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+                <DropdownMenuItem onClick={onToggleComplete}>
+                  {isCompleted ? "Reopen goal" : "Mark complete"}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
+                  <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Goals() {
   const qc = useQueryClient();
@@ -315,12 +454,14 @@ export default function Goals() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editGoal, setEditGoal] = useState<typeof goals extends Array<infer T> ? T : any | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(() => window.innerWidth >= 768);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [completedOpen, setCompletedOpen] = useState(false);
   const [filters, setFilters] = useLocalStorage<GoalFilters>("goals_filters_v2", DEFAULT_FILTERS);
 
   useGoalMilestoneTracker(goals);
 
   const today = new Date().toISOString().split("T")[0];
+  const thisWeekEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   const isGoalOverdue = (g: NonNullable<typeof goals>[number]) =>
     !!(g.targetEndDate && g.targetEndDate < today && g.status !== "completed" && g.status !== "archived");
@@ -351,8 +492,9 @@ export default function Goals() {
 
   const sorted = useMemo(() => {
     const dir = filters.sortDir === "asc" ? 1 : -1;
+    const sb = filters.sortBy === "status" ? "dueDate" : filters.sortBy;
     return [...filtered].sort((a, b) => {
-      switch (filters.sortBy) {
+      switch (sb) {
         case "dueDate":
           if (!a.targetEndDate && !b.targetEndDate) return 0;
           if (!a.targetEndDate) return dir; if (!b.targetEndDate) return -dir;
@@ -363,12 +505,24 @@ export default function Goals() {
           return ((PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99)) * dir;
         case "title":
           return a.title.localeCompare(b.title) * dir;
-        case "status":
-          return ((STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99)) * dir;
         default: return 0;
       }
     });
   }, [filtered, filters.sortBy, filters.sortDir]);
+
+  // ── Section grouping ─────────────────────────────────────────────────────
+  const overdueGoals     = sorted.filter(g => isGoalOverdue(g));
+  const dueThisWeekGoals = sorted.filter(g =>
+    !isGoalOverdue(g) &&
+    g.status !== "completed" && g.status !== "archived" &&
+    g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd
+  );
+  const activeGoals      = sorted.filter(g =>
+    !isGoalOverdue(g) &&
+    g.status !== "completed" && g.status !== "archived" &&
+    !(g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd)
+  );
+  const completedGoals   = sorted.filter(g => g.status === "completed");
 
   const isFiltered =
     filters.search !== "" || !filters.statuses.includes("all") ||
@@ -383,8 +537,11 @@ export default function Goals() {
   ].filter(Boolean).length;
 
   const clearFilters = () => setFilters(DEFAULT_FILTERS);
-
   const setF = (patch: Partial<GoalFilters>) => setFilters({ ...filters, ...patch });
+
+  const activeSortLabel = SORT_OPTIONS.find(
+    o => o.sortBy === filters.sortBy && o.sortDir === filters.sortDir
+  )?.label ?? "Due date — soonest";
 
   const handleDelete = (id: number) => {
     if (!confirm("Delete this goal?")) return;
@@ -404,6 +561,17 @@ export default function Goals() {
     });
   };
 
+  const goalCardProps = (goal: NonNullable<typeof goals>[number], overdue: boolean) => ({
+    goal,
+    overdue,
+    onToggleComplete: () => handleToggleComplete(goal),
+    onEdit: () => { setEditGoal(goal); setFormOpen(true); },
+    onDelete: () => handleDelete(goal.id),
+    isPending: updateGoal.isPending,
+  });
+
+  const hasAnyGoals = sorted.length > 0;
+
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-4">
       {/* Header */}
@@ -417,39 +585,68 @@ export default function Goals() {
         </Button>
       </div>
 
-      {/* Search + filter toggle */}
+      {/* Search + Sort (always visible) + Filter toggle */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
             value={filters.search}
             onChange={e => setF({ search: e.target.value })}
-            placeholder="Search goals by title or description…"
+            placeholder="Search goals…"
             className="pl-9"
           />
           {filters.search && (
-            <button onClick={() => setF({ search: "" })} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <button
+              onClick={() => setF({ search: "" })}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setFiltersOpen(v => !v)}
-          className={filtersOpen ? "bg-muted" : ""}
-          title="Toggle filters"
-        >
-          <Filter className="w-4 h-4" />
+
+        {/* Sort dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5 text-sm">
+              Sort
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            {SORT_OPTIONS.map(opt => (
+              <DropdownMenuItem
+                key={`${opt.sortBy}:${opt.sortDir}`}
+                onClick={() => setF({ sortBy: opt.sortBy, sortDir: opt.sortDir })}
+                className="flex items-center justify-between"
+              >
+                {opt.label}
+                {activeSortLabel === opt.label && <Check className="w-3.5 h-3.5 text-primary ml-2" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Filter toggle */}
+        <div className="relative">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setFiltersOpen(v => !v)}
+            className={filtersOpen ? "bg-muted" : ""}
+            title="Toggle filters"
+          >
+            <Filter className="w-4 h-4" />
+          </Button>
           {activeFilterCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold pointer-events-none">
               {activeFilterCount}
             </span>
           )}
-        </Button>
+        </div>
       </div>
 
-      {/* Filter + sort panel */}
+      {/* Collapsible filter panel */}
       {filtersOpen && (
         <div className="space-y-3 p-4 bg-muted/30 rounded-xl border border-border">
           {/* Status chips */}
@@ -491,9 +688,8 @@ export default function Goals() {
             </div>
           </div>
 
-          {/* Category + Date + Sort */}
+          {/* Category + Date */}
           <div className="flex flex-wrap gap-2 items-center">
-            {/* Category */}
             {categories.length > 0 && (
               <Select value={filters.categoryId || "all"} onValueChange={v => setF({ categoryId: v === "all" ? "" : v })}>
                 <SelectTrigger className="h-8 text-xs w-[150px]">
@@ -506,7 +702,6 @@ export default function Goals() {
               </Select>
             )}
 
-            {/* Date filter mode */}
             <Select value={filters.dateMode} onValueChange={v => setF({ dateMode: v as GoalFilters["dateMode"] })}>
               <SelectTrigger className="h-8 text-xs w-[140px]">
                 <SelectValue />
@@ -531,29 +726,6 @@ export default function Goals() {
                   className="h-8 text-xs w-[140px]" placeholder="To" />
               </>
             )}
-
-            {/* Sort */}
-            <div className="flex items-center gap-1 ml-auto">
-              <Select value={filters.sortBy} onValueChange={v => setF({ sortBy: v as GoalFilters["sortBy"] })}>
-                <SelectTrigger className="h-8 text-xs w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dueDate">Due date</SelectItem>
-                  <SelectItem value="createdAt">Created date</SelectItem>
-                  <SelectItem value="priority">Priority</SelectItem>
-                  <SelectItem value="title">A → Z</SelectItem>
-                  <SelectItem value="status">Status</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="ghost" size="icon" className="h-8 w-8"
-                onClick={() => setF({ sortDir: filters.sortDir === "asc" ? "desc" : "asc" })}
-                title={filters.sortDir === "asc" ? "Ascending" : "Descending"}>
-                {filters.sortDir === "asc"
-                  ? <ArrowUp className="w-3.5 h-3.5" />
-                  : <ArrowDown className="w-3.5 h-3.5" />}
-              </Button>
-            </div>
           </div>
         </div>
       )}
@@ -581,7 +753,7 @@ export default function Goals() {
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
-      ) : sorted.length === 0 ? (
+      ) : !hasAnyGoals ? (
         <div className="text-center py-16">
           <Target className="w-12 h-12 text-muted mx-auto mb-3" />
           <h3 className="font-semibold text-foreground mb-1">
@@ -599,93 +771,28 @@ export default function Goals() {
           )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {sorted.map(goal => {
-            const pct = goal.targetValue && goal.targetValue > 0
-              ? Math.min(100, Math.round(((goal.currentValue ?? 0) / goal.targetValue) * 100))
-              : 0;
-            const overdue = isGoalOverdue(goal);
-            const isCompleted = goal.status === "completed";
-            const milestoneColor =
-              pct >= 100 ? "text-primary" : pct >= 75 ? "text-orange-500" :
-              pct >= 50 ? "text-amber-500" : pct >= 25 ? "text-blue-500" : "text-muted-foreground";
+        <div className="space-y-6">
+          <GoalSection label="Overdue" count={overdueGoals.length}>
+            {overdueGoals.map(g => <GoalCard key={g.id} {...goalCardProps(g, true)} />)}
+          </GoalSection>
 
-            return (
-              <Card key={goal.id} data-testid={`goal-${goal.id}`}
-                className={`border-border hover:shadow-sm transition-shadow ${isCompleted ? "opacity-70" : ""} ${overdue ? "border-l-4 border-l-red-400" : ""}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <button onClick={() => handleToggleComplete(goal)} className="mt-0.5 flex-shrink-0 transition-colors"
-                      title={isCompleted ? "Mark as active" : "Mark as complete"} disabled={updateGoal.isPending}>
-                      {isCompleted
-                        ? <CheckCircle2 className="w-5 h-5 text-primary" />
-                        : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />}
-                    </button>
+          <GoalSection label="Due this week" count={dueThisWeekGoals.length}>
+            {dueThisWeekGoals.map(g => <GoalCard key={g.id} {...goalCardProps(g, false)} />)}
+          </GoalSection>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                        <span className={`font-semibold text-foreground ${isCompleted ? "line-through" : ""}`}>{goal.title}</span>
-                        {overdue && (
-                          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
-                            <AlertTriangle className="w-3 h-3" /> Overdue
-                          </span>
-                        )}
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[goal.status]}`}>{goal.status}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${priorityColors[goal.priority]}`}>{goal.priority}</span>
-                        {pct >= 25 && goal.goalType === "quantitative" && (
-                          <span className={`text-xs font-semibold ${milestoneColor}`}>
-                            {pct >= 100 ? "🏆 Complete" : pct >= 75 ? "🔥 Almost there" : pct >= 50 ? "⚡ Halfway" : "🎯 Started"}
-                          </span>
-                        )}
-                      </div>
-                      {goal.description && (
-                        <p className="text-sm text-muted-foreground mb-2 line-clamp-1">{goal.description}</p>
-                      )}
-                      {goal.goalType === "quantitative" && (
-                        <div className="mt-2">
-                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                            <span>{goal.currentValue ?? 0} / {goal.targetValue ?? "—"}</span>
-                            <span className="font-medium">{pct}%</span>
-                          </div>
-                          <Progress value={pct} className="h-1.5" />
-                          {goal.status === "active" && <QuickProgressInput goal={goal} />}
-                        </div>
-                      )}
-                      {goal.targetEndDate && (
-                        <p className={`text-xs mt-1.5 ${overdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                          {overdue ? "Was due" : "Due"} {goal.targetEndDate}
-                        </p>
-                      )}
-                    </div>
+          <GoalSection label="Active" count={activeGoals.length}>
+            {activeGoals.map(g => <GoalCard key={g.id} {...goalCardProps(g, false)} />)}
+          </GoalSection>
 
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <Link href={`/goals/${goal.id}`}>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <ChevronRight className="w-4 h-4" />
-                        </Button>
-                      </Link>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`goal-menu-${goal.id}`}>
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { setEditGoal(goal); setFormOpen(true); }}>Edit</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleToggleComplete(goal)}>
-                            {isCompleted ? "Reopen goal" : "Mark complete"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDelete(goal.id)}>
-                            <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          <GoalSection
+            label="Completed"
+            count={completedGoals.length}
+            collapsible
+            open={completedOpen}
+            onToggle={() => setCompletedOpen(v => !v)}
+          >
+            {completedGoals.map(g => <GoalCard key={g.id} {...goalCardProps(g, false)} />)}
+          </GoalSection>
         </div>
       )}
 
