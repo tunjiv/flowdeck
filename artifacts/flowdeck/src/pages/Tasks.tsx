@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   useListTasks, useCreateTask, useUpdateTask, useDeleteTask, useCompleteTask,
   useListGoals, useListCategories, useListSubtasks, useCreateSubtask,
@@ -9,8 +9,8 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Plus, CheckCircle2, Circle, Trash2, MoreHorizontal, CalendarDays, Repeat2,
-  ChevronDown, ChevronRight, X, Tag, Filter, Search, ArrowUp, ArrowDown, AlertTriangle,
+  Plus, CheckCircle2, Circle, Trash2, MoreHorizontal, CalendarDays,
+  ChevronDown, ChevronRight, X, Tag, Filter, Search, Check, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,12 +27,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import { useLocalStorage } from "@/lib/useLocalStorage";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TASK_PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
-const TASK_STATUS_RANK: Record<string, number> = { pending: 0, in_progress: 1, completed: 2, cancelled: 3 };
+const TASK_STATUS_RANK: Record<string, number> = { pending: 0, in_progress: 1, completed: 2, archived: 3 };
 
 const priorityBadge: Record<string, string> = {
   urgent: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
@@ -41,6 +40,14 @@ const priorityBadge: Record<string, string> = {
   low: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
 const TAG_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899", "#14b8a6", "#8b5cf6"];
+
+const SORT_OPTIONS = [
+  { label: "Due date — soonest", sortBy: "dueDate" as const,   sortDir: "asc" as const },
+  { label: "Due date — latest",  sortBy: "dueDate" as const,   sortDir: "desc" as const },
+  { label: "Priority — highest", sortBy: "priority" as const,  sortDir: "asc" as const },
+  { label: "Alphabetical",       sortBy: "title" as const,     sortDir: "asc" as const },
+  { label: "Recently created",   sortBy: "createdAt" as const, sortDir: "desc" as const },
+] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toggleMulti(current: string[], value: string): string[] {
@@ -88,7 +95,7 @@ type TaskFilters = {
 
 const DEFAULT_FILTERS: TaskFilters = {
   search: "",
-  statuses: ["pending"],
+  statuses: ["all"],
   priorities: ["all"],
   goalId: "",
   tagIds: [],
@@ -99,6 +106,44 @@ const DEFAULT_FILTERS: TaskFilters = {
   sortBy: "dueDate",
   sortDir: "asc",
 };
+
+// ── TaskSection ────────────────────────────────────────────────────────────────
+function TaskSection({
+  label, count, collapsible = false, open, onToggle, children,
+}: {
+  label: string;
+  count: number;
+  collapsible?: boolean;
+  open?: boolean;
+  onToggle?: () => void;
+  children: React.ReactNode;
+}) {
+  if (count === 0) return null;
+  const isOpen = !collapsible || open;
+
+  return (
+    <div className="space-y-2">
+      <button
+        className={`flex items-center gap-2 w-full text-left ${collapsible ? "cursor-pointer" : "cursor-default"}`}
+        onClick={collapsible ? onToggle : undefined}
+        disabled={!collapsible}
+      >
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
+        <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+          {count}
+        </span>
+        {collapsible && (
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-muted-foreground ml-auto transition-transform ${isOpen ? "rotate-180" : ""}`}
+          />
+        )}
+      </button>
+      {isOpen && <div className="space-y-1.5">{children}</div>}
+    </div>
+  );
+}
 
 // ── Tag picker ────────────────────────────────────────────────────────────────
 function TagPicker({ taskId, assignedTagIds }: { taskId: number; assignedTagIds: number[] }) {
@@ -411,13 +456,14 @@ export default function Tasks() {
   const [formOpen, setFormOpen] = useState(false);
   const [editTask, setEditTask] = useState<any>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
-  const [filtersOpen, setFiltersOpen] = useState(() => window.innerWidth >= 768);
-  const [filters, setFilters] = useLocalStorage<TaskFilters>("tasks_filters_v2", DEFAULT_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [completedOpen, setCompletedOpen] = useState(false);
+  const [filters, setFilters] = useLocalStorage<TaskFilters>("tasks_filters_v3", DEFAULT_FILTERS);
 
   const today = new Date().toISOString().split("T")[0];
 
   const isTaskOverdue = (t: { status: string; dueDate?: string | null }) =>
-    !!(t.dueDate && t.dueDate < today && t.status !== "completed" && t.status !== "cancelled");
+    !!(t.dueDate && t.dueDate < today && t.status !== "completed" && t.status !== "archived");
 
   const taskTagMap = useMemo(() => {
     const map = new Map<number, number[]>();
@@ -479,13 +525,28 @@ export default function Tasks() {
     });
   }, [filtered, filters.sortBy, filters.sortDir]);
 
+  // ── Section grouping ──────────────────────────────────────────────────────
+  const overdueTaskList = sorted.filter(t => isTaskOverdue(t));
+  const dueTodayTaskList = sorted.filter(t =>
+    !isTaskOverdue(t) &&
+    t.status !== "completed" &&
+    t.status !== "archived" &&
+    t.dueDate === today
+  );
+  const completedTaskList = sorted.filter(t => t.status === "completed" || t.status === "archived");
+  const activeTaskList = sorted.filter(t =>
+    !isTaskOverdue(t) &&
+    t.status !== "completed" &&
+    t.status !== "archived" &&
+    t.dueDate !== today
+  );
+
   const isFiltered =
     filters.search !== "" || !filters.statuses.includes("all") ||
     !filters.priorities.includes("all") || filters.goalId !== "" ||
     filters.tagIds.length > 0 || filters.dateMode !== "none";
 
   const activeFilterCount = [
-    filters.search !== "",
     !filters.statuses.includes("all"),
     !filters.priorities.includes("all"),
     filters.goalId !== "",
@@ -495,6 +556,10 @@ export default function Tasks() {
 
   const clearFilters = () => setFilters(DEFAULT_FILTERS);
   const setF = (patch: Partial<TaskFilters>) => setFilters({ ...filters, ...patch });
+
+  const activeSortLabel = SORT_OPTIONS.find(
+    o => o.sortBy === filters.sortBy && o.sortDir === filters.sortDir
+  )?.label ?? "Due date — soonest";
 
   const toggleExpand = (id: number) => {
     setExpandedTasks(prev => {
@@ -526,6 +591,64 @@ export default function Tasks() {
     setF({ tagIds: next });
   };
 
+  const renderTaskCard = (task: NonNullable<typeof tasks>[number]) => {
+    const expanded = expandedTasks.has(task.id);
+    const taskTagIds = taskTagMap.get(task.id) ?? [];
+    const overdue = isTaskOverdue(task);
+
+    return (
+      <div key={task.id} data-testid={`task-${task.id}`}
+        className={`rounded-xl border bg-card hover:shadow-sm transition-all ${
+          task.status === "completed" || task.status === "archived" ? "opacity-60" : ""
+        } ${overdue ? "border-l-4 border-l-red-400 border-r border-t border-b border-border" : "border-border"}`}>
+        <div className="flex items-start gap-3 p-3.5">
+          <button data-testid={`complete-${task.id}`} onClick={() => handleComplete(task.id)} className="mt-0.5 flex-shrink-0">
+            {task.status === "completed" || task.status === "archived"
+              ? <CheckCircle2 className="w-5 h-5 text-primary" />
+              : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />}
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-medium ${task.status === "completed" || task.status === "archived" ? "line-through text-muted-foreground" : "text-foreground"}`}>
+              {task.title}
+            </p>
+            {task.notes && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.notes}</p>}
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {task.dueDate && (
+                <span className={`flex items-center gap-1 text-xs ${overdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                  {overdue && <AlertTriangle className="w-3 h-3" />}
+                  <CalendarDays className="w-3 h-3" />
+                  {task.dueDate === today ? "Today" : task.dueDate}
+                </span>
+              )}
+              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${priorityBadge[task.priority]}`}>{task.priority}</span>
+            </div>
+          </div>
+          <button onClick={() => toggleExpand(task.id)}
+            className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+            title={expanded ? "Collapse" : "Subtasks & tags"}>
+            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" data-testid={`task-menu-${task.id}`}>
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => { setEditTask(task); setFormOpen(true); }}>Edit</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDelete(task.id)}>
+                <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {expanded && <TaskPanel taskId={task.id} assignedTagIds={taskTagIds} />}
+      </div>
+    );
+  };
+
+  const hasAnyTasks = sorted.length > 0;
+
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-4">
       {/* Header */}
@@ -539,7 +662,7 @@ export default function Tasks() {
         </Button>
       </div>
 
-      {/* Search + filter toggle */}
+      {/* Search + Sort (always visible) + Filter toggle */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -555,6 +678,30 @@ export default function Tasks() {
             </button>
           )}
         </div>
+
+        {/* Sort dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5 text-sm">
+              Sort
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            {SORT_OPTIONS.map(opt => (
+              <DropdownMenuItem
+                key={`${opt.sortBy}:${opt.sortDir}`}
+                onClick={() => setF({ sortBy: opt.sortBy, sortDir: opt.sortDir })}
+                className="flex items-center justify-between"
+              >
+                {opt.label}
+                {activeSortLabel === opt.label && <Check className="w-3.5 h-3.5 text-primary ml-2" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Filter toggle */}
         <div className="relative">
           <Button variant="outline" size="icon" onClick={() => setFiltersOpen(v => !v)}
             className={filtersOpen ? "bg-muted" : ""} title="Toggle filters">
@@ -568,7 +715,7 @@ export default function Tasks() {
         </div>
       </div>
 
-      {/* Filter + sort panel */}
+      {/* Collapsible filter panel */}
       {filtersOpen && (
         <div className="space-y-3 p-4 bg-muted/30 rounded-xl border border-border">
           {/* Status chips */}
@@ -637,7 +784,7 @@ export default function Tasks() {
             </div>
           )}
 
-          {/* Goal + Date + Sort row */}
+          {/* Goal + Date row */}
           <div className="flex flex-wrap gap-2 items-center">
             {allGoals.length > 0 && (
               <Select value={filters.goalId || "all"} onValueChange={v => setF({ goalId: v === "all" ? "" : v })}>
@@ -675,24 +822,6 @@ export default function Tasks() {
                   className="h-8 text-xs w-[140px]" />
               </>
             )}
-
-            <div className="flex items-center gap-1 ml-auto">
-              <Select value={filters.sortBy} onValueChange={v => setF({ sortBy: v as TaskFilters["sortBy"] })}>
-                <SelectTrigger className="h-8 text-xs w-[150px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dueDate">Due date</SelectItem>
-                  <SelectItem value="createdAt">Created date</SelectItem>
-                  <SelectItem value="priority">Priority</SelectItem>
-                  <SelectItem value="title">A → Z</SelectItem>
-                  <SelectItem value="status">Status</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="ghost" size="icon" className="h-8 w-8"
-                onClick={() => setF({ sortDir: filters.sortDir === "asc" ? "desc" : "asc" })}
-                title={filters.sortDir === "asc" ? "Ascending" : "Descending"}>
-                {filters.sortDir === "asc" ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
-              </Button>
-            </div>
           </div>
         </div>
       )}
@@ -720,7 +849,7 @@ export default function Tasks() {
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
         </div>
-      ) : sorted.length === 0 ? (
+      ) : !hasAnyTasks ? (
         <div className="text-center py-16">
           <CheckCircle2 className="w-12 h-12 text-muted mx-auto mb-3" />
           <h3 className="font-semibold text-foreground mb-1">
@@ -738,75 +867,28 @@ export default function Tasks() {
           )}
         </div>
       ) : (
-        <div className="space-y-1.5">
-          {sorted.map(task => {
-            const expanded = expandedTasks.has(task.id);
-            const taskTagIds = taskTagMap.get(task.id) ?? [];
-            const taskTags = taskTagIds.map(tid => tagMap.get(tid)).filter(Boolean) as typeof allTags;
-            const overdue = isTaskOverdue(task);
+        <div className="space-y-6">
+          <TaskSection label="Overdue" count={overdueTaskList.length}>
+            {overdueTaskList.map(renderTaskCard)}
+          </TaskSection>
 
-            return (
-              <div key={task.id} data-testid={`task-${task.id}`}
-                className={`rounded-xl border bg-card hover:shadow-sm transition-all ${
-                  task.status === "completed" ? "opacity-60" : ""
-                } ${overdue ? "border-l-4 border-l-red-400 border-r border-t border-b border-border" : "border-border"}`}>
-                <div className="flex items-start gap-3 p-3.5">
-                  <button data-testid={`complete-${task.id}`} onClick={() => handleComplete(task.id)} className="mt-0.5 flex-shrink-0">
-                    {task.status === "completed"
-                      ? <CheckCircle2 className="w-5 h-5 text-primary" />
-                      : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${task.status === "completed" ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                      {task.title}
-                    </p>
-                    {task.notes && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.notes}</p>}
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      {task.dueDate && (
-                        <span className={`flex items-center gap-1 text-xs ${overdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                          {overdue && <AlertTriangle className="w-3 h-3" />}
-                          <CalendarDays className="w-3 h-3" />
-                          {task.dueDate === format(new Date(), "yyyy-MM-dd") ? "Today" : task.dueDate}
-                        </span>
-                      )}
-                      {task.estimatedMinutes && <span className="text-xs text-muted-foreground">{task.estimatedMinutes}m</span>}
-                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${priorityBadge[task.priority]}`}>{task.priority}</span>
-                      {task.recurrence && task.recurrence !== "none" && (
-                        <span className="flex items-center gap-1 text-xs text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded">
-                          <Repeat2 className="w-3 h-3" />{task.recurrence}
-                        </span>
-                      )}
-                      {taskTags.map(tag => (
-                        <span key={tag.id} className="text-xs px-1.5 py-0.5 rounded-full text-white"
-                          style={{ backgroundColor: tag.color }}>
-                          {tag.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <button onClick={() => toggleExpand(task.id)}
-                    className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
-                    title={expanded ? "Collapse" : "Subtasks & tags"}>
-                    {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  </button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" data-testid={`task-menu-${task.id}`}>
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => { setEditTask(task); setFormOpen(true); }}>Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDelete(task.id)}>
-                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                {expanded && <TaskPanel taskId={task.id} assignedTagIds={taskTagIds} />}
-              </div>
-            );
-          })}
+          <TaskSection label="Due Today" count={dueTodayTaskList.length}>
+            {dueTodayTaskList.map(renderTaskCard)}
+          </TaskSection>
+
+          <TaskSection label="Active" count={activeTaskList.length}>
+            {activeTaskList.map(renderTaskCard)}
+          </TaskSection>
+
+          <TaskSection
+            label="Completed"
+            count={completedTaskList.length}
+            collapsible
+            open={completedOpen}
+            onToggle={() => setCompletedOpen(v => !v)}
+          >
+            {completedTaskList.map(renderTaskCard)}
+          </TaskSection>
         </div>
       )}
 
