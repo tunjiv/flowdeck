@@ -1,98 +1,693 @@
-import { useUser } from "@clerk/react";
+import { useState, useMemo } from "react";
 import { Link } from "wouter";
+import { useUser } from "@clerk/react";
 import {
-  useGetDashboardSummary,
-  useGetWeeklyOverview,
-  useGetUpcomingTasks,
-  useListHabits,
-  useListHabitLogs,
-  useListGoals,
-  useGetTodaysMood,
-  useCreateMoodLog,
-  useGetProductivityScore,
-  useCompleteTask,
-  getGetDashboardSummaryQueryKey,
-  getListHabitLogsQueryKey,
-  getGetTodaysMoodQueryKey,
-  getGetUpcomingTasksQueryKey,
+  useListTasks, useListGoals, useListHabits, useListFocusSessions,
+  useListHabitLogs, useGetTodaysMood, useCreateMoodLog,
+  useCompleteTask, useUpdateGoal, useGetWeeklyReview, useGetProductivityScore,
+  getListTasksQueryKey, getListGoalsQueryKey, getGetTodaysMoodQueryKey,
 } from "@workspace/api-client-react";
+import type { Task, Goal } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { CheckCircle2, Target, Repeat, Zap, Clock, TrendingUp, CalendarDays, Smile, SmilePlus, Frown, Meh, Laugh } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import type { DateRange } from "react-day-picker";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import {
+  CheckCircle2, Circle, Target, AlertTriangle, CalendarDays,
+  ChevronDown, X, Smile, SmilePlus, Frown, Meh, Laugh, Zap,
+  TrendingUp, ChevronRight, Repeat, Clock,
+} from "lucide-react";
+import {
+  format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
+  startOfYear, endOfYear, addDays,
+} from "date-fns";
 import { toast } from "sonner";
-import { format } from "date-fns";
 
-const moodEmojis: Record<number, { icon: React.ComponentType<{ className?: string }>, label: string, color: string }> = {
-  1: { icon: Frown, label: "Rough", color: "text-red-500" },
-  2: { icon: Meh, label: "Low", color: "text-orange-500" },
-  3: { icon: Smile, label: "Okay", color: "text-yellow-500" },
-  4: { icon: SmilePlus, label: "Good", color: "text-green-500" },
-  5: { icon: Laugh, label: "Great", color: "text-emerald-500" },
+// ── Constants ──────────────────────────────────────────────────────────────────
+type MoodMeta = { icon: typeof Frown; label: string; color: string };
+const MOOD_META: { [key: number]: MoodMeta } = {
+  1: { icon: Frown,     label: "Rough", color: "text-red-500" },
+  2: { icon: Meh,       label: "Low",   color: "text-orange-500" },
+  3: { icon: Smile,     label: "Okay",  color: "text-yellow-500" },
+  4: { icon: SmilePlus, label: "Good",  color: "text-green-500" },
+  5: { icon: Laugh,     label: "Great", color: "text-emerald-500" },
 };
+const MOOD_EMOJI: { [key: number]: string } = { 1: "😞", 2: "😕", 3: "😐", 4: "🙂", 5: "😄" };
+const MOOD_LABEL: { [key: number]: string } = { 1: "Rough", 2: "Low", 3: "Okay", 4: "Good", 5: "Great" };
 
-const priorityColors: Record<string, string> = {
+const TASK_PRIORITY_COLORS: { [key: string]: string } = {
   urgent: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  high: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  high:   "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   normal: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  low: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+  low:    "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+};
+const GOAL_PRIORITY_COLORS: { [key: string]: string } = {
+  high:   "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  medium: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  low:    "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
 
-export default function Dashboard() {
-  const { user } = useUser();
+const OVERDUE_DISMISS_KEY = "flowdeck_overdue_dismissed";
+
+// ── Date helpers ───────────────────────────────────────────────────────────────
+function todayStr(): string { return new Date().toISOString().split("T")[0]!; }
+function dateToStr(d: Date): string { return d.toISOString().split("T")[0]!; }
+
+function getPresets(): { [name: string]: { from?: Date; to?: Date } } {
+  const now = new Date();
+  return {
+    Today:        { from: now, to: now },
+    Yesterday:    { from: subDays(now, 1), to: subDays(now, 1) },
+    "This Week":  { from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) },
+    "Last Week":  { from: startOfWeek(subDays(now, 7), { weekStartsOn: 1 }), to: endOfWeek(subDays(now, 7), { weekStartsOn: 1 }) },
+    "This Month": { from: startOfMonth(now), to: endOfMonth(now) },
+    "This Year":  { from: startOfYear(now),  to: endOfYear(now) },
+    "All Time":   {},
+  };
+}
+
+function rangeLabel(range: DateRange | null): string {
+  if (!range || (!range.from && !range.to)) return "All Time";
+  const presets = getPresets();
+  for (const [name, p] of Object.entries(presets)) {
+    const hasBoth = p.from && p.to && range.from && range.to;
+    if (hasBoth &&
+      dateToStr(p.from!) === dateToStr(range.from!) &&
+      dateToStr(p.to!)   === dateToStr(range.to!)) return name;
+    if (!p.from && !p.to && !range.from && !range.to) return name;
+  }
+  if (range.from && range.to) {
+    if (dateToStr(range.from) === dateToStr(range.to))
+      return format(range.from, "MMM d, yyyy");
+    return `${format(range.from, "MMM d")} – ${format(range.to, "MMM d")}`;
+  }
+  if (range.from) return format(range.from, "MMM d, yyyy");
+  return "Select dates";
+}
+
+function inRange(dateStr: string, range: DateRange | null): boolean {
+  if (!range || (!range.from && !range.to)) return true;
+  if (range.from && !range.to) return dateStr >= dateToStr(range.from);
+  if (!range.from && range.to) return dateStr <= dateToStr(range.to);
+  return dateStr >= dateToStr(range.from!) && dateStr <= dateToStr(range.to!);
+}
+
+// ── DateRangeFilter ────────────────────────────────────────────────────────────
+function DateRangeFilter({ value, onChange }: { value: DateRange | null; onChange: (r: DateRange | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const presets = getPresets();
+
+  const handlePreset = (name: string) => {
+    const p = presets[name];
+    if (!p) return;
+    onChange(!p.from && !p.to ? null : { from: p.from, to: p.to });
+    if (!p.from && !p.to) setOpen(false);
+  };
+
+  const activePreset = (() => {
+    if (!value || (!value.from && !value.to)) return "All Time";
+    for (const [name, p] of Object.entries(presets)) {
+      if (p.from && p.to && value.from && value.to &&
+        dateToStr(p.from) === dateToStr(value.from) &&
+        dateToStr(p.to)   === dateToStr(value.to)) return name;
+    }
+    return null;
+  })();
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="gap-2 text-sm font-medium">
+          <CalendarDays className="w-4 h-4 text-muted-foreground" />
+          {rangeLabel(value)}
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground ml-1" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0 shadow-lg" align="start">
+        <div className="flex">
+          <div className="border-r border-border p-2 flex flex-col gap-0.5 min-w-[120px]">
+            {Object.keys(presets).map(name => (
+              <button
+                key={name}
+                onClick={() => handlePreset(name)}
+                className={`text-left text-sm px-3 py-1.5 rounded-md transition-colors ${
+                  activePreset === name
+                    ? "bg-primary text-primary-foreground font-medium"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <div className="p-2">
+            <Calendar
+              mode="range"
+              selected={value ?? { from: undefined, to: undefined }}
+              onSelect={(r) => onChange(r ?? null)}
+              numberOfMonths={1}
+              className="rounded-md"
+            />
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── OverdueBanner ──────────────────────────────────────────────────────────────
+function OverdueBanner({ overdueTasks, overdueGoals }: { overdueTasks: number; overdueGoals: number }) {
+  const [dismissed, setDismissed] = useState(() => {
+    try { return sessionStorage.getItem(OVERDUE_DISMISS_KEY) === todayStr(); }
+    catch { return false; }
+  });
+
+  const dismiss = () => {
+    try { sessionStorage.setItem(OVERDUE_DISMISS_KEY, todayStr()); } catch { /* ok */ }
+    setDismissed(true);
+  };
+
+  if (dismissed || (overdueTasks === 0 && overdueGoals === 0)) return null;
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 rounded-xl">
+      <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+      <div className="flex-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        {overdueTasks > 0 && (
+          <span className="text-red-700 dark:text-red-400">
+            <span className="font-semibold">{overdueTasks}</span> overdue task{overdueTasks !== 1 ? "s" : ""}{" "}
+            <Link href="/tasks">
+              <span className="underline underline-offset-2 hover:no-underline cursor-pointer">View</span>
+            </Link>
+          </span>
+        )}
+        {overdueGoals > 0 && (
+          <span className="text-red-700 dark:text-red-400">
+            <span className="font-semibold">{overdueGoals}</span> overdue goal{overdueGoals !== 1 ? "s" : ""}{" "}
+            <Link href="/goals">
+              <span className="underline underline-offset-2 hover:no-underline cursor-pointer">View</span>
+            </Link>
+          </span>
+        )}
+      </div>
+      <button onClick={dismiss} className="text-red-400 hover:text-red-600 transition-colors flex-shrink-0">
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+// ── TodoPanel ──────────────────────────────────────────────────────────────────
+function TodoPanel({ tasks, range }: { tasks: Task[] | undefined; range: DateRange | null }) {
   const qc = useQueryClient();
-  const today = format(new Date(), "yyyy-MM-dd");
-
-  const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary();
-  const { data: weekly, isLoading: weeklyLoading } = useGetWeeklyOverview();
-  const { data: upcoming, isLoading: upcomingLoading } = useGetUpcomingTasks();
-  const { data: habits } = useListHabits();
-  const { data: habitLogs } = useListHabitLogs({ date: today });
-  const { data: todayMood } = useGetTodaysMood();
-  const { data: goals } = useListGoals();
-  const { data: score } = useGetProductivityScore();
-
-  const createMood = useCreateMoodLog();
   const completeTask = useCompleteTask();
+  const today = todayStr();
+  const [completingIds, setCompletingIds] = useState<Set<number>>(new Set());
 
-  const logMood = (mood: number) => {
-    createMood.mutate({ data: { mood, logDate: today } }, {
+  const handleComplete = (id: number) => {
+    setCompletingIds(prev => new Set(prev).add(id));
+    completeTask.mutate({ id }, {
       onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getGetTodaysMoodQueryKey() });
-        qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-        toast.success("Mood logged");
+        qc.invalidateQueries({ queryKey: getListTasksQueryKey() });
+        toast.success("Task completed");
+      },
+      onError: () => {
+        setCompletingIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+        toast.error("Failed to complete task");
       },
     });
   };
 
-  const activeGoals = goals?.filter(g => g.status === "active").slice(0, 5) ?? [];
-  const loggedHabitIds = new Set(habitLogs?.map(l => l.habitId) ?? []);
+  const isOverdue = (t: Task) =>
+    !!(t.dueDate && t.dueDate < today && t.status !== "completed" && t.status !== "archived");
+
+  const grouped = useMemo(() => {
+    const all = tasks ?? [];
+    const overdue:   Task[] = [];
+    const dueToday:  Task[] = [];
+    const upcoming:  Task[] = [];
+    const completed: Task[] = [];
+
+    for (const t of all) {
+      if (t.status === "archived") continue;
+      if (t.status === "completed" || completingIds.has(t.id)) {
+        if (!t.dueDate || inRange(t.dueDate, range)) completed.push(t);
+        continue;
+      }
+      if (isOverdue(t)) {
+        overdue.push(t);
+      } else if (t.dueDate === today) {
+        dueToday.push(t);
+      } else if (t.dueDate && inRange(t.dueDate, range)) {
+        upcoming.push(t);
+      }
+    }
+
+    const byDate = (a: Task, b: Task) => (a.dueDate ?? "").localeCompare(b.dueDate ?? "");
+    return {
+      overdue:   overdue.sort(byDate),
+      dueToday:  dueToday.sort(byDate),
+      upcoming:  upcoming.sort(byDate),
+      completed,
+    };
+  }, [tasks, range, completingIds, today]);
+
+  const hasItems = grouped.overdue.length + grouped.dueToday.length + grouped.upcoming.length + grouped.completed.length > 0;
+
+  function TaskRow({ task, overdue = false }: { task: Task; overdue?: boolean }) {
+    const done = task.status === "completed" || completingIds.has(task.id);
+    return (
+      <div className={`flex items-start gap-2.5 py-2 px-2 rounded-lg transition-colors ${overdue ? "bg-red-50/60 dark:bg-red-950/20" : "hover:bg-muted/40"}`}>
+        <button
+          onClick={() => !done && handleComplete(task.id)}
+          disabled={done}
+          className="mt-0.5 flex-shrink-0 disabled:cursor-default"
+        >
+          {done
+            ? <CheckCircle2 className="w-4 h-4 text-primary" />
+            : <Circle className={`w-4 h-4 transition-colors ${overdue ? "text-red-400 hover:text-red-600" : "text-muted-foreground hover:text-primary"}`} />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm leading-snug ${done ? "line-through text-muted-foreground" : overdue ? "text-red-700 dark:text-red-400 font-medium" : "text-foreground"}`}>
+            {task.title}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {task.dueDate && (
+              <span className={`text-xs ${overdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                {overdue ? "Was due " : ""}{format(new Date(task.dueDate + "T12:00:00"), "MMM d")}
+              </span>
+            )}
+            <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${TASK_PRIORITY_COLORS[task.priority] ?? ""}`}>
+              {task.priority}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function SectionLabel({ label, color = "text-muted-foreground" }: { label: string; color?: string }) {
+    return <p className={`text-[10px] font-semibold uppercase tracking-wider px-2 pb-1 pt-1 ${color}`}>{label}</p>;
+  }
+
+  return (
+    <Card className="border-border flex flex-col h-full min-h-0">
+      <CardHeader className="pb-1 pt-4 px-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-primary" /> To-Do
+          </CardTitle>
+          <Link href="/tasks">
+            <span className="text-xs text-primary hover:underline cursor-pointer">All tasks</span>
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="px-2 pb-3 overflow-y-auto flex-1 max-h-[420px]">
+        {!hasItems ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">No tasks for this period</p>
+            <Link href="/tasks"><Button size="sm" variant="outline" className="mt-2">Add task</Button></Link>
+          </div>
+        ) : (
+          <>
+            {grouped.overdue.length > 0 && (
+              <><SectionLabel label="Overdue" color="text-red-500" />
+              {grouped.overdue.map(t => <TaskRow key={t.id} task={t} overdue />)}</>
+            )}
+            {grouped.dueToday.length > 0 && (
+              <><SectionLabel label="Today" />
+              {grouped.dueToday.map(t => <TaskRow key={t.id} task={t} />)}</>
+            )}
+            {grouped.upcoming.length > 0 && (
+              <><SectionLabel label="Upcoming" />
+              {grouped.upcoming.map(t => <TaskRow key={t.id} task={t} />)}</>
+            )}
+            {grouped.completed.length > 0 && (
+              <><SectionLabel label="Completed" />
+              {grouped.completed.map(t => <TaskRow key={t.id} task={t} />)}</>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── GoalsDashPanel ─────────────────────────────────────────────────────────────
+function GoalsDashPanel({ goals }: { goals: Goal[] | undefined }) {
+  const qc = useQueryClient();
+  const updateGoal = useUpdateGoal();
+  const today = todayStr();
+  const [updatingIds, setUpdatingIds] = useState<Set<number>>(new Set());
+
+  const handleToggleComplete = (goal: Goal) => {
+    const newStatus = goal.status === "completed" ? "active" : "completed";
+    setUpdatingIds(prev => new Set(prev).add(goal.id));
+    updateGoal.mutate({ id: goal.id, data: { status: newStatus } }, {
+      onSuccess: () => { qc.invalidateQueries({ queryKey: getListGoalsQueryKey() }); toast.success(newStatus === "completed" ? "Goal completed 🎉" : "Goal reopened"); },
+      onError: () => toast.error("Failed to update goal"),
+      onSettled: () => setUpdatingIds(prev => { const n = new Set(prev); n.delete(goal.id); return n; }),
+    });
+  };
+
+  const handleStatusChange = (goal: Goal, status: string) => {
+    updateGoal.mutate({ id: goal.id, data: { status: status as Goal["status"] } }, {
+      onSuccess: () => { qc.invalidateQueries({ queryKey: getListGoalsQueryKey() }); toast.success("Goal updated"); },
+      onError: () => toast.error("Failed to update goal"),
+    });
+  };
+
+  const sorted = useMemo(() => {
+    const all = goals ?? [];
+    const active    = all.filter(g => g.status === "active" || g.status === "paused");
+    const completed = all.filter(g => g.status === "completed");
+    active.sort((a, b) => {
+      if (a.targetEndDate && b.targetEndDate) return a.targetEndDate.localeCompare(b.targetEndDate);
+      return a.targetEndDate ? -1 : b.targetEndDate ? 1 : 0;
+    });
+    return [...active, ...completed];
+  }, [goals]);
+
+  return (
+    <Card className="border-border flex flex-col h-full min-h-0">
+      <CardHeader className="pb-1 pt-4 px-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Target className="w-4 h-4 text-primary" /> Active Goals
+          </CardTitle>
+          <Link href="/goals">
+            <span className="text-xs text-primary hover:underline cursor-pointer">All goals</span>
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="px-2 pb-3 overflow-y-auto flex-1 max-h-[420px]">
+        {sorted.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">No goals yet</p>
+            <Link href="/goals"><Button size="sm" variant="outline" className="mt-2">Create goal</Button></Link>
+          </div>
+        ) : (
+          <div className="space-y-0.5">
+            {sorted.map(goal => {
+              const isCompleted = goal.status === "completed";
+              const isOverdue = !!(goal.targetEndDate && goal.targetEndDate < today && !isCompleted);
+              return (
+                <div
+                  key={goal.id}
+                  className={`flex items-start gap-2.5 py-2 px-2 rounded-lg transition-colors ${isCompleted ? "opacity-60" : isOverdue ? "bg-red-50/60 dark:bg-red-950/20" : "hover:bg-muted/40"}`}
+                >
+                  <button
+                    onClick={() => !updatingIds.has(goal.id) && handleToggleComplete(goal)}
+                    disabled={updatingIds.has(goal.id)}
+                    className="mt-0.5 flex-shrink-0 disabled:cursor-default"
+                  >
+                    {isCompleted
+                      ? <CheckCircle2 className="w-4 h-4 text-primary" />
+                      : <Circle className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium leading-snug ${isCompleted ? "line-through text-muted-foreground" : isOverdue ? "text-red-700 dark:text-red-400" : "text-foreground"}`}>
+                      {goal.title}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${GOAL_PRIORITY_COLORS[goal.priority] ?? ""}`}>
+                        {goal.priority}
+                      </span>
+                      {goal.targetEndDate && (
+                        <span className={`text-xs ${isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                          {isOverdue ? "Was due " : "Due "}{format(new Date(goal.targetEndDate + "T12:00:00"), "MMM d")}
+                        </span>
+                      )}
+                      <Select value={goal.status} onValueChange={val => handleStatusChange(goal, val)}>
+                        <SelectTrigger className="h-5 text-xs px-1.5 w-auto border-dashed min-w-[80px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="paused">Paused</SelectItem>
+                          <SelectItem value="archived">Archived</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Link href={`/goals/${goal.id}`}>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground hover:text-foreground mt-0.5 flex-shrink-0" />
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── UpcomingPanel ──────────────────────────────────────────────────────────────
+function UpcomingPanel({ tasks, goals }: { tasks: Task[] | undefined; goals: Goal[] | undefined }) {
+  const today = todayStr();
+  const days = Array.from({ length: 8 }, (_, i) => dateToStr(addDays(new Date(), i)));
+
+  const groupedByDay = useMemo(() => {
+    return days.map(day => {
+      const dayTasks = (tasks ?? []).filter(t =>
+        t.dueDate === day && t.status !== "completed" && t.status !== "archived"
+      );
+      const dayGoals = (goals ?? []).filter(g =>
+        g.targetEndDate === day && g.status !== "completed" && g.status !== "archived"
+      );
+      return { day, tasks: dayTasks, goals: dayGoals };
+    }).filter(g => g.tasks.length > 0 || g.goals.length > 0);
+  }, [tasks, goals]);
+
+  return (
+    <Card className="border-border flex flex-col h-full min-h-0">
+      <CardHeader className="pb-1 pt-4 px-4">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <CalendarDays className="w-4 h-4 text-primary" /> Next 7 Days
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-2 pb-3 overflow-y-auto flex-1 max-h-[420px]">
+        {groupedByDay.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">Nothing due in the next 7 days</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {groupedByDay.map(({ day, tasks: dayTasks, goals: dayGoals }) => {
+              const isToday = day === today;
+              const isTomorrow = day === dateToStr(addDays(new Date(), 1));
+              const dateObj = new Date(day + "T12:00:00");
+              const prefix = isToday ? "Today" : isTomorrow ? "Tomorrow" : "";
+              const dayLabel = prefix
+                ? `${prefix} — ${format(dateObj, "EEE, MMM d")}`
+                : format(dateObj, "EEE, MMM d");
+              return (
+                <div key={day}>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wider px-2 pb-1 ${isToday ? "text-primary" : "text-muted-foreground"}`}>
+                    {dayLabel}
+                  </p>
+                  <div className="space-y-0.5">
+                    {dayTasks.map(t => (
+                      <Link key={`t-${t.id}`} href="/tasks">
+                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                          <span className="text-sm text-foreground truncate flex-1">{t.title}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${TASK_PRIORITY_COLORS[t.priority] ?? ""}`}>
+                            {t.priority}
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                    {dayGoals.map(g => (
+                      <Link key={`g-${g.id}`} href={`/goals/${g.id}`}>
+                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                          <span className="text-sm text-foreground truncate flex-1">{g.title}</span>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">Goal</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── WeeklySummary ──────────────────────────────────────────────────────────────
+function WeeklySummary() {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useGetWeeklyReview();
+
+  const moodData = useMemo(() => data?.days.map(d => ({ day: d.day, mood: d.mood })) ?? [], [data]);
+  const taskData = useMemo(() => data?.days.map(d => ({ day: d.day, tasks: d.tasksCompleted })) ?? [], [data]);
+
+  return (
+    <Card className="border-border">
+      <button className="w-full text-left" onClick={() => setOpen(v => !v)}>
+        <CardHeader className="py-3 px-5">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-primary" /> Weekly Summary
+            </CardTitle>
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+          </div>
+        </CardHeader>
+      </button>
+
+      {open && (
+        <CardContent className="px-5 pb-5">
+          {isLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+            </div>
+          ) : data ? (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-muted/30 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-foreground">{data.tasksCompletedCount}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Tasks done this week</p>
+                </div>
+                <div className="bg-muted/30 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-foreground">{data.activeGoals.completed}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Goals completed</p>
+                </div>
+                <div className="bg-muted/30 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-foreground">
+                    {data.avgMood != null ? MOOD_EMOJI[Math.round(data.avgMood)] : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {data.avgMood != null ? `Avg mood ${data.avgMood}/5` : "No mood logs"}
+                  </p>
+                </div>
+                <div className="bg-muted/30 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-foreground">
+                    {Math.floor(data.totalFocusMinutes / 60)}h {data.totalFocusMinutes % 60}m
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Focus time</p>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Mood trend</p>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <LineChart data={moodData}>
+                      <XAxis dataKey="day" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={18} />
+                      <Tooltip formatter={(v: number) => v ? [`${MOOD_EMOJI[v] ?? ""} ${MOOD_LABEL[v] ?? ""}`, "Mood"] : ["—", "Mood"]} cursor={{ stroke: "hsl(var(--border))" }} />
+                      <Line type="monotone" dataKey="mood" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--primary))" }} connectNulls={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Tasks completed per day</p>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <BarChart data={taskData} margin={{ left: -20 }}>
+                      <XAxis dataKey="day" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
+                      <Tooltip formatter={(v: number) => [v, "Tasks"]} cursor={{ fill: "hsl(var(--muted))" }} />
+                      <Bar dataKey="tasks" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} opacity={0.85} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">No weekly data available</p>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+// ── Main Dashboard ─────────────────────────────────────────────────────────────
+export default function Dashboard() {
+  const { user } = useUser();
+  const qc = useQueryClient();
+  const today = todayStr();
+
+  const { data: tasks, isLoading: tasksLoading } = useListTasks();
+  const { data: goals, isLoading: goalsLoading } = useListGoals();
+  const { data: habits }         = useListHabits();
+  const { data: habitLogs }      = useListHabitLogs({ date: today });
+  const { data: focusSessions }  = useListFocusSessions();
+  const { data: todayMood }      = useGetTodaysMood();
+  const { data: score }          = useGetProductivityScore();
+  const createMood               = useCreateMoodLog();
+
+  const [dateRange, setDateRange] = useState<DateRange | null>({ from: new Date(), to: new Date() });
 
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? "Good morning" : greetingHour < 17 ? "Good afternoon" : "Good evening";
 
+  const overdueTasks = useMemo(() =>
+    (tasks ?? []).filter(t => t.dueDate && t.dueDate < today && t.status === "pending").length,
+  [tasks, today]);
+
+  const overdueGoals = useMemo(() =>
+    (goals ?? []).filter(g =>
+      g.targetEndDate && g.targetEndDate < today && g.status !== "completed" && g.status !== "archived"
+    ).length,
+  [goals, today]);
+
+  const { tasksCompleted, totalDue } = useMemo(() => {
+    const all = tasks ?? [];
+    const relevant = all.filter(t => t.dueDate && inRange(t.dueDate, dateRange) && t.status !== "archived");
+    return {
+      tasksCompleted: relevant.filter(t => t.status === "completed").length,
+      totalDue: relevant.length,
+    };
+  }, [tasks, dateRange]);
+
+  const activeGoalsCount = useMemo(() => (goals ?? []).filter(g => g.status === "active").length, [goals]);
+
+  const logMood = (mood: number) => {
+    createMood.mutate({ data: { mood, logDate: today } }, {
+      onSuccess: () => { qc.invalidateQueries({ queryKey: getGetTodaysMoodQueryKey() }); toast.success("Mood logged"); },
+    });
+  };
+
+  const hasHabits = (habits?.length ?? 0) > 0;
+  const hasFocus  = (focusSessions?.length ?? 0) > 0;
+  const loggedHabitIds = new Set(habitLogs?.map(l => l.habitId) ?? []);
+
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-5 max-w-screen-xl mx-auto space-y-4">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          {greeting}, {user?.firstName ?? "there"}
-        </h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          {format(new Date(), "EEEE, MMMM d")} — here's your day at a glance
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            {greeting}, {user?.firstName ?? "there"}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            {format(new Date(), "EEEE, MMMM d")}
+          </p>
+        </div>
+        <DateRangeFilter value={dateRange} onChange={setDateRange} />
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {summaryLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
-        ) : (
-          <>
+      {/* Overdue banner */}
+      <OverdueBanner overdueTasks={overdueTasks} overdueGoals={overdueGoals} />
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {(tasksLoading || totalDue > 0 || tasksCompleted > 0) && (
+          tasksLoading ? <Skeleton className="h-20 rounded-xl" /> : (
             <Card className="border-border">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
@@ -100,273 +695,163 @@ export default function Dashboard() {
                   <span className="text-xs text-muted-foreground font-medium">Tasks</span>
                 </div>
                 <p className="text-2xl font-bold text-foreground">
-                  {summary?.tasksCompleted ?? 0}
-                  <span className="text-sm font-normal text-muted-foreground">/{summary?.tasksToday ?? 0}</span>
+                  {tasksCompleted}
+                  <span className="text-sm font-normal text-muted-foreground">/{totalDue}</span>
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">completed today</p>
+                <p className="text-xs text-muted-foreground mt-0.5">completed in period</p>
               </CardContent>
             </Card>
+          )
+        )}
+
+        {(goalsLoading || activeGoalsCount > 0) && (
+          goalsLoading ? <Skeleton className="h-20 rounded-xl" /> : (
             <Card className="border-border">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Target className="w-4 h-4 text-primary" />
                   <span className="text-xs text-muted-foreground font-medium">Goals</span>
                 </div>
-                <p className="text-2xl font-bold text-foreground">{summary?.activeGoals ?? 0}</p>
+                <p className="text-2xl font-bold text-foreground">{activeGoalsCount}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">active goals</p>
               </CardContent>
             </Card>
-            <Card className="border-border">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Repeat className="w-4 h-4 text-primary" />
-                  <span className="text-xs text-muted-foreground font-medium">Habits</span>
-                </div>
-                <p className="text-2xl font-bold text-foreground">
-                  {summary?.habitsCompleted ?? 0}
-                  <span className="text-sm font-normal text-muted-foreground">/{summary?.habitsToday ?? 0}</span>
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">done today</p>
-              </CardContent>
-            </Card>
-            <Card className="border-border">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Zap className="w-4 h-4 text-primary" />
-                  <span className="text-xs text-muted-foreground font-medium">Score</span>
-                </div>
-                <p className="text-2xl font-bold text-foreground">{summary?.productivityScore ?? 0}
-                  <span className="text-sm font-normal text-muted-foreground">/100</span>
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">productivity</p>
-              </CardContent>
-            </Card>
-          </>
+          )
         )}
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Weekly bar chart */}
+        {/* Mood card — always shown */}
         <Card className="border-border">
-          <CardHeader className="pb-2 pt-4 px-5">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-primary" />
-              This Week
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-4">
-            {weeklyLoading ? (
-              <Skeleton className="h-40" />
-            ) : (
-              <ResponsiveContainer width="100%" height={140}>
-                <BarChart data={weekly ?? []} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
-                    cursor={{ fill: "hsl(var(--muted))" }}
-                  />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]} name="Tasks">
-                    {(weekly ?? []).map((entry, i) => (
-                      <Cell key={i} fill={entry.day === format(new Date(), "EEE") ? "hsl(var(--primary))" : "hsl(var(--primary) / 0.3)"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Mood check-in */}
-        <Card className="border-border">
-          <CardHeader className="pb-2 pt-4 px-5">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
               <Smile className="w-4 h-4 text-primary" />
-              Today's Mood
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-4">
-            {todayMood ? (
-              <div className="flex flex-col items-center gap-2 py-3">
-                {(() => {
-                  const m = moodEmojis[todayMood.mood];
-                  return (
-                    <>
-                      <m.icon className={`w-12 h-12 ${m.color}`} />
-                      <p className="font-medium text-foreground">{m.label}</p>
-                      {todayMood.notes && <p className="text-sm text-muted-foreground text-center">{todayMood.notes}</p>}
-                    </>
-                  );
-                })()}
-              </div>
-            ) : (
-              <div className="py-2">
-                <p className="text-sm text-muted-foreground mb-3">How are you feeling today?</p>
-                <div className="flex gap-2 justify-between">
-                  {[1, 2, 3, 4, 5].map((mood) => {
-                    const { icon: Icon, label, color } = moodEmojis[mood];
+              <span className="text-xs text-muted-foreground font-medium">Mood</span>
+            </div>
+            {todayMood ? (() => {
+              const meta = MOOD_META[todayMood.mood];
+              return meta ? (
+                <>
+                  <p className={`text-2xl font-bold ${meta.color}`}>{meta.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">today's mood</p>
+                </>
+              ) : null;
+            })() : (
+              <>
+                <p className="text-xs text-muted-foreground mb-1.5">How are you today?</p>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map(m => {
+                    const meta = MOOD_META[m];
+                    if (!meta) return null;
+                    const Icon = meta.icon;
                     return (
-                      <button
-                        key={mood}
-                        data-testid={`mood-${mood}`}
-                        onClick={() => logMood(mood)}
-                        className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-muted transition-colors flex-1"
-                      >
-                        <Icon className={`w-7 h-7 ${color}`} />
-                        <span className="text-xs text-muted-foreground">{label}</span>
+                      <button key={m} onClick={() => logMood(m)} data-testid={`mood-${m}`} className="p-1 rounded hover:bg-muted transition-colors">
+                        <Icon className={`w-5 h-5 ${meta.color}`} />
                       </button>
                     );
                   })}
                 </div>
-              </div>
+              </>
             )}
           </CardContent>
         </Card>
+
+        {/* Productivity score */}
+        {score != null && score.score > 0 && (
+          <Card className="border-border">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="w-4 h-4 text-primary" />
+                <span className="text-xs text-muted-foreground font-medium">Score</span>
+              </div>
+              <p className="text-2xl font-bold text-foreground">
+                {score.score}
+                <span className="text-sm font-normal text-muted-foreground">/100</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">productivity</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Active Goals */}
-        <Card className="border-border">
-          <CardHeader className="pb-2 pt-4 px-5">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Target className="w-4 h-4 text-primary" />
-                Active Goals
-              </CardTitle>
-              <Link href="/goals">
-                <span className="text-xs text-primary hover:underline cursor-pointer">View all</span>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent className="px-5 pb-4 space-y-3">
-            {activeGoals.length === 0 ? (
-              <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground">No active goals</p>
-                <Link href="/goals">
-                  <Button size="sm" variant="outline" className="mt-2">Create a goal</Button>
-                </Link>
-              </div>
-            ) : (
-              activeGoals.map(goal => {
-                const pct = goal.targetValue && goal.targetValue > 0
-                  ? Math.min(100, Math.round(((goal.currentValue ?? 0) / goal.targetValue) * 100))
-                  : 0;
-                return (
-                  <div key={goal.id} data-testid={`goal-card-${goal.id}`}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm font-medium text-foreground truncate flex-1 mr-2">{goal.title}</span>
-                      <span className="text-xs text-muted-foreground">{pct}%</span>
-                    </div>
-                    <Progress value={pct} className="h-1.5" />
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
+      {/* Three-panel layout */}
+      {(tasksLoading || goalsLoading) ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-80 rounded-xl" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <TodoPanel tasks={tasks} range={dateRange} />
+          <GoalsDashPanel goals={goals} />
+          <UpcomingPanel tasks={tasks} goals={goals} />
+        </div>
+      )}
 
-        {/* Habit streaks */}
+      {/* Conditional: Habit streaks */}
+      {hasHabits && habits && (
         <Card className="border-border">
           <CardHeader className="pb-2 pt-4 px-5">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Repeat className="w-4 h-4 text-primary" />
-                Habit Streaks
+                <Repeat className="w-4 h-4 text-primary" /> Habit Streaks
               </CardTitle>
               <Link href="/habits">
                 <span className="text-xs text-primary hover:underline cursor-pointer">View all</span>
               </Link>
             </div>
           </CardHeader>
-          <CardContent className="px-5 pb-4 space-y-2">
-            {!habits || habits.length === 0 ? (
-              <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground">No habits yet</p>
-                <Link href="/habits">
-                  <Button size="sm" variant="outline" className="mt-2">Add habit</Button>
-                </Link>
-              </div>
-            ) : (
-              habits.slice(0, 5).map(habit => (
-                <div key={habit.id} data-testid={`habit-card-${habit.id}`}
-                  className="flex items-center gap-3 py-1.5">
+          <CardContent className="px-5 pb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              {habits.slice(0, 6).map(habit => (
+                <div
+                  key={habit.id}
+                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-colors ${
+                    loggedHabitIds.has(habit.id)
+                      ? "border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800/40"
+                      : "border-border bg-muted/20"
+                  }`}
+                >
                   <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0"
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
                     style={{ backgroundColor: `${habit.color ?? "#6366f1"}20`, color: habit.color ?? "#6366f1" }}
                   >
-                    {habit.name[0].toUpperCase()}
+                    {habit.name[0]?.toUpperCase() ?? "?"}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{habit.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{habit.frequency}</p>
-                  </div>
-                  <div className={`w-3 h-3 rounded-full flex-shrink-0 ${loggedHabitIds.has(habit.id) ? "bg-green-500" : "bg-muted"}`} />
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Upcoming tasks */}
-      <Card className="border-border">
-        <CardHeader className="pb-2 pt-4 px-5">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-primary" />
-              Upcoming (next 7 days)
-            </CardTitle>
-            <Link href="/tasks">
-              <span className="text-xs text-primary hover:underline cursor-pointer">View all</span>
-            </Link>
-          </div>
-        </CardHeader>
-        <CardContent className="px-5 pb-4">
-          {upcomingLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
-            </div>
-          ) : !upcoming || upcoming.length === 0 ? (
-            <div className="text-center py-6">
-              <p className="text-sm text-muted-foreground">Nothing scheduled for the next 7 days</p>
-              <Link href="/tasks">
-                <Button size="sm" variant="outline" className="mt-2">Add task</Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              {upcoming.slice(0, 6).map(task => (
-                <div key={task.id} data-testid={`upcoming-task-${task.id}`}
-                  className="flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-muted/50 transition-colors">
-                  <button
-                    onClick={() => {
-                      completeTask.mutate({ id: task.id }, {
-                        onSuccess: () => {
-                          qc.invalidateQueries({ queryKey: getGetUpcomingTasksQueryKey() });
-                          qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-                        },
-                      });
-                    }}
-                    data-testid={`complete-task-${task.id}`}
-                    className="w-4 h-4 rounded-full border-2 border-border hover:border-primary transition-colors flex-shrink-0"
-                  />
-                  <span className="flex-1 text-sm text-foreground truncate">{task.title}</span>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {task.dueDate && (
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(task.dueDate + "T00:00:00"), "MMM d")}
-                      </span>
-                    )}
-                    <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${priorityColors[task.priority]}`}>
-                      {task.priority}
-                    </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{habit.name}</p>
+                    <p className="text-[10px] text-muted-foreground capitalize">{habit.frequency}</p>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Conditional: Focus stats */}
+      {hasFocus && focusSessions && (
+        <Card className="border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Clock className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {focusSessions.length} focus session{focusSessions.length !== 1 ? "s" : ""} completed
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {focusSessions.reduce((acc, s) => acc + (s.durationMinutes ?? 0), 0)} minutes total
+                </p>
+              </div>
+              <Link href="/focus" className="ml-auto">
+                <Button size="sm" variant="outline" className="text-xs">Start session</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Weekly summary (collapsible) */}
+      <WeeklySummary />
     </div>
   );
 }
