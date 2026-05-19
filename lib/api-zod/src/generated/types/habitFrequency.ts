@@ -14,5 +14,6 @@ export const HabitFrequency = {
   weekdays: "weekdays",
   weekly: "weekly",
   monthly: "monthly",
+  yearly: "yearly",
   custom: "custom",
 } as const;

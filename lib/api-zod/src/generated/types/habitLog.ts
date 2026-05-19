@@ -5,12 +5,14 @@
  * FlowDeck productivity app API
  * OpenAPI spec version: 0.1.0
  */
+import type { HabitLogStatus } from "./habitLogStatus";
 
 export interface HabitLog {
   id: number;
   userId: string;
   habitId: number;
   logDate: string;
+  status: HabitLogStatus;
   /** @nullable */
   value?: number | null;
   /** @nullable */

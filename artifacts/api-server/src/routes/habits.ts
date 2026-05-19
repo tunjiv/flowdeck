@@ -12,6 +12,8 @@ import {
   LogHabitBody,
   ListHabitLogsQueryParams,
   DeleteHabitLogParams,
+  UpdateHabitLogParams,
+  UpdateHabitLogBody,
 } from "@workspace/api-zod";
 import { requireAuth, getUserId } from "../middlewares/requireAuth";
 
@@ -296,6 +298,30 @@ router.post("/habit-logs", requireAuth, async (req, res): Promise<void> => {
     .values({ ...parsed.data, userId })
     .returning();
   res.status(201).json(log);
+});
+
+router.patch("/habit-logs/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = getUserId(req);
+  const params = UpdateHabitLogParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = UpdateHabitLogBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [log] = await db
+    .update(habitLogsTable)
+    .set(parsed.data)
+    .where(and(eq(habitLogsTable.id, params.data.id), eq(habitLogsTable.userId, userId)))
+    .returning();
+  if (!log) {
+    res.status(404).json({ error: "Habit log not found" });
+    return;
+  }
+  res.json(log);
 });
 
 router.delete("/habit-logs/:id", requireAuth, async (req, res): Promise<void> => {

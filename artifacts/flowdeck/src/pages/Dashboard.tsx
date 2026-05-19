@@ -664,7 +664,20 @@ export default function Dashboard() {
 
   const hasHabits = (habits?.length ?? 0) > 0;
   const hasFocus  = (focusSessions?.length ?? 0) > 0;
-  const loggedHabitIds = new Set(habitLogs?.map(l => l.habitId) ?? []);
+  const logsByHabitId = useMemo(() => {
+    const map: Record<number, { id: number; status: string }> = {};
+    for (const l of habitLogs ?? []) map[l.habitId] = { id: l.id, status: l.status };
+    return map;
+  }, [habitLogs]);
+  const scheduledHabitsToday = (habits ?? []).filter(h => {
+    const dow = new Date().getDay();
+    switch (h.frequency) {
+      case "daily": return true;
+      case "weekdays": return dow >= 1 && dow <= 5;
+      default: return true;
+    }
+  });
+  const habitsDoneToday = scheduledHabitsToday.filter(h => logsByHabitId[h.id]?.status === "done").length;
 
   return (
     <div className="p-5 max-w-screen-xl mx-auto space-y-4">
@@ -754,6 +767,23 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Habits stat card */}
+        {hasHabits && (
+          <Card className="border-border">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Repeat className="w-4 h-4 text-primary" />
+                <span className="text-xs text-muted-foreground font-medium">Habits</span>
+              </div>
+              <p className="text-2xl font-bold text-foreground">
+                {habitsDoneToday}
+                <span className="text-sm font-normal text-muted-foreground">/{scheduledHabitsToday.length}</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">done today</p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Productivity score */}
         {score != null && score.score > 0 && (
           <Card className="border-border">
@@ -804,8 +834,12 @@ export default function Dashboard() {
                 <div
                   key={habit.id}
                   className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-colors ${
-                    loggedHabitIds.has(habit.id)
+                    logsByHabitId[habit.id]?.status === "done"
                       ? "border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800/40"
+                      : logsByHabitId[habit.id]?.status === "skipped"
+                      ? "border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/40"
+                      : logsByHabitId[habit.id]?.status === "missed"
+                      ? "border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800/40"
                       : "border-border bg-muted/20"
                   }`}
                 >

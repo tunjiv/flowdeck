@@ -295,6 +295,7 @@ export const HabitFrequency = {
   weekdays: "weekdays",
   weekly: "weekly",
   monthly: "monthly",
+  yearly: "yearly",
   custom: "custom",
 } as const;
 
@@ -307,6 +308,11 @@ export interface Habit {
   /** @nullable */
   goalId?: number | null;
   frequency: HabitFrequency;
+  /**
+   * JSON string with custom recurrence config (interval, unit, daysOfWeek)
+   * @nullable
+   */
+  recurrenceConfig?: string | null;
   /** @nullable */
   targetValue?: number | null;
   /** @nullable */
@@ -332,6 +338,7 @@ export const HabitInputFrequency = {
   weekdays: "weekdays",
   weekly: "weekly",
   monthly: "monthly",
+  yearly: "yearly",
   custom: "custom",
 } as const;
 
@@ -341,6 +348,8 @@ export interface HabitInput {
   categoryId?: number;
   goalId?: number;
   frequency: HabitInputFrequency;
+  /** JSON string with custom recurrence config */
+  recurrenceConfig?: string;
   targetValue?: number;
   icon?: string;
   color?: string;
@@ -360,6 +369,7 @@ export const HabitUpdateFrequency = {
   weekdays: "weekdays",
   weekly: "weekly",
   monthly: "monthly",
+  yearly: "yearly",
   custom: "custom",
 } as const;
 
@@ -369,6 +379,8 @@ export interface HabitUpdate {
   categoryId?: number;
   goalId?: number;
   frequency?: HabitUpdateFrequency;
+  /** JSON string with custom recurrence config */
+  recurrenceConfig?: string;
   targetValue?: number;
   icon?: string;
   color?: string;
@@ -397,11 +409,21 @@ export interface HeatmapEntry {
   count: number;
 }
 
+export type HabitLogStatus =
+  (typeof HabitLogStatus)[keyof typeof HabitLogStatus];
+
+export const HabitLogStatus = {
+  done: "done",
+  skipped: "skipped",
+  missed: "missed",
+} as const;
+
 export interface HabitLog {
   id: number;
   userId: string;
   habitId: number;
   logDate: string;
+  status: HabitLogStatus;
   /** @nullable */
   value?: number | null;
   /** @nullable */
@@ -409,10 +431,34 @@ export interface HabitLog {
   createdAt: string;
 }
 
+export type HabitLogInputStatus =
+  (typeof HabitLogInputStatus)[keyof typeof HabitLogInputStatus];
+
+export const HabitLogInputStatus = {
+  done: "done",
+  skipped: "skipped",
+  missed: "missed",
+} as const;
+
 export interface HabitLogInput {
   habitId: number;
   logDate: string;
+  status?: HabitLogInputStatus;
   value?: number;
+  notes?: string;
+}
+
+export type HabitLogUpdateStatus =
+  (typeof HabitLogUpdateStatus)[keyof typeof HabitLogUpdateStatus];
+
+export const HabitLogUpdateStatus = {
+  done: "done",
+  skipped: "skipped",
+  missed: "missed",
+} as const;
+
+export interface HabitLogUpdate {
+  status?: HabitLogUpdateStatus;
   notes?: string;
 }
 

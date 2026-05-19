@@ -1,0 +1,16 @@
+Implement the following changes:
+1. Tasks & Habits — core model change
+Tasks are one-off items only — remove any recurrence option from the task creation/edit form entirely. A task is completed once and disappears. Tasks link optionally to a Goal via a dropdown on the creation form.
+2. Habits module — new/reworked
+Any item with a recurrence schedule is a Habit, not a Task. The Habits page should list all habits with: name, recurrence label (e.g. "Every weekday"), a 7-dot streak indicator (teal=done, red=missed, amber=skipped, grey=future), and current streak count. Clicking a habit row expands it inline to show: three acknowledgment buttons for today (Done / Skipped / Missed), the last 7-day dot history, and a "catch-up" section if there are past unacknowledged days — showing a day-selector grid where the user can tap individual past days, select all, or select weekdays only, then confirm. Habits link optionally to a Goal.
+3. Habit creation — recurrence picker
+When creating a new habit, show a repeat picker styled like Microsoft To Do: a simple list of options — Daily, Weekdays, Weekly, Monthly, Yearly, and Custom. Tapping any preset saves immediately with one tap. Tapping Custom reveals two inline fields: "Every [n] [days/weeks/months/years]" and, if weeks is selected, a 7-circle day-of-week strip (Su Mo Tu We Th Fr Sa) to toggle specific days. A plain-English summary updates live beneath (e.g. "Every 2 weeks on Monday, Thursday"). No end date field on creation — that lives in habit settings.
+4. Dashboard — updated
+Add a 5th summary card: "Habits" showing X/Y done today in teal. Replace one of the three dashboard columns with a "Habits today" column showing each habit with its name, 7-day dot strip, and inline Done/Skipped/Missed quick-tap buttons. Add a third column for "Habit trends" showing: a tab strip to switch between habits, a mini bar chart for the selected habit's last 7 days, and three stat chips — this week %, current streak, best streak. A "Full trends →" link navigates to the Habits module.
+5. Habits module — trends view
+The Habits page has two sections. Top: summary stat cards (active habits, done today, best streak, this month %). Below: a completion bar chart showing all habits with their weekly % rendered as a horizontal bar — green above 70%, amber 40–70%, red below 40%. Below that: a 28-day heatmap calendar for the selected habit (teal=done, amber=skipped, red=missed, grey=empty) with a legend.
+6. Calendar page — new
+Add a Calendar nav item. The view is month-only. Tasks appear as small chips on their due date. Habits appear on every day they are scheduled based on their recurrence rule, shown in a distinct teal style. Clicking a habit chip on a past or today date opens the acknowledgment panel (Done/Skipped/Missed). Clicking a future date chip shows the habit detail. Clicking an empty day opens a quick-add panel to create a task or habit.
+7. Goal linking
+On a Goal detail page, show two separate sections: "Milestones" (linked tasks, shown as a checklist) and "Habits" (linked habits, shown with streak health). A goal whose linked habits are all below 50% completion this week should surface a subtle amber warning on the goal card.
+Preserve the existing teal/white design system throughout. Use the existing component patterns for cards, badges, and nav items.

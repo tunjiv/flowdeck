@@ -820,6 +820,31 @@ paths:
                 $ref: "#/components/schemas/HabitLog"
 
   /habit-logs/{id}:
+    patch:
+      operationId: updateHabitLog
+      tags: [habitLogs]
+      summary: Update a habit log (change status)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitLogUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitLog"
+        "404":
+          description: Not found
     delete:
       operationId: deleteHabitLog
       tags: [habitLogs]
@@ -1378,7 +1403,10 @@ components:
           type: ["integer", "null"]
         frequency:
           type: string
-          enum: [daily, weekdays, weekly, monthly, custom]
+          enum: [daily, weekdays, weekly, monthly, yearly, custom]
+        recurrenceConfig:
+          type: ["string", "null"]
+          description: JSON string with custom recurrence config (interval, unit, daysOfWeek)
         targetValue:
           type: ["number", "null"]
         icon:
@@ -1409,7 +1437,10 @@ components:
           type: integer
         frequency:
           type: string
-          enum: [daily, weekdays, weekly, monthly, custom]
+          enum: [daily, weekdays, weekly, monthly, yearly, custom]
+        recurrenceConfig:
+          type: string
+          description: JSON string with custom recurrence config
         targetValue:
           type: number
         icon:
@@ -1435,7 +1466,10 @@ components:
           type: integer
         frequency:
           type: string
-          enum: [daily, weekdays, weekly, monthly, custom]
+          enum: [daily, weekdays, weekly, monthly, yearly, custom]
+        recurrenceConfig:
+          type: string
+          description: JSON string with custom recurrence config
         targetValue:
           type: number
         icon:
@@ -1484,7 +1518,7 @@ components:
     # ── HABIT LOG ─────────────────────────────────────────────
     HabitLog:
       type: object
-      required: [id, userId, habitId, logDate, createdAt]
+      required: [id, userId, habitId, logDate, status, createdAt]
       properties:
         id:
           type: integer
@@ -1494,6 +1528,9 @@ components:
           type: integer
         logDate:
           type: string
+        status:
+          type: string
+          enum: [done, skipped, missed]
         value:
           type: ["number", "null"]
         notes:
@@ -1509,8 +1546,20 @@ components:
           type: integer
         logDate:
           type: string
+        status:
+          type: string
+          enum: [done, skipped, missed]
         value:
           type: number
+        notes:
+          type: string
+
+    HabitLogUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [done, skipped, missed]
         notes:
           type: string
 

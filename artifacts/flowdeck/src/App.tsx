@@ -19,6 +19,7 @@ import Categories from "@/pages/Categories";
 import Focus from "@/pages/Focus";
 import Settings from "@/pages/Settings";
 import WeeklyReview from "@/pages/WeeklyReview";
+import Calendar from "@/pages/Calendar";
 import NotFound from "@/pages/not-found";
 import { CookieBanner } from "@/components/CookieBanner";
 
@@ -223,6 +224,7 @@ function AppRouter() {
           <Route path="/tasks" component={() => <ProtectedRoute component={Tasks} />} />
           <Route path="/habits/:id" component={HabitDetailRoute} />
           <Route path="/habits" component={() => <ProtectedRoute component={Habits} />} />
+          <Route path="/calendar" component={() => <ProtectedRoute component={Calendar} />} />
           <Route path="/categories" component={() => <ProtectedRoute component={Categories} />} />
           <Route path="/focus" component={() => <ProtectedRoute component={Focus} />} />
           <Route path="/weekly-review" component={() => <ProtectedRoute component={WeeklyReview} />} />

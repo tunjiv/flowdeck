@@ -538,7 +538,20 @@ export const ListHabitsResponseItem = zod.object({
   name: zod.string(),
   categoryId: zod.number().nullish(),
   goalId: zod.number().nullish(),
-  frequency: zod.enum(["daily", "weekdays", "weekly", "monthly", "custom"]),
+  frequency: zod.enum([
+    "daily",
+    "weekdays",
+    "weekly",
+    "monthly",
+    "yearly",
+    "custom",
+  ]),
+  recurrenceConfig: zod
+    .string()
+    .nullish()
+    .describe(
+      "JSON string with custom recurrence config (interval, unit, daysOfWeek)",
+    ),
   targetValue: zod.number().nullish(),
   icon: zod.string().nullish(),
   color: zod.string().nullish(),
@@ -564,7 +577,18 @@ export const CreateHabitBody = zod.object({
   name: zod.string().min(1),
   categoryId: zod.number().optional(),
   goalId: zod.number().optional(),
-  frequency: zod.enum(["daily", "weekdays", "weekly", "monthly", "custom"]),
+  frequency: zod.enum([
+    "daily",
+    "weekdays",
+    "weekly",
+    "monthly",
+    "yearly",
+    "custom",
+  ]),
+  recurrenceConfig: zod
+    .string()
+    .optional()
+    .describe("JSON string with custom recurrence config"),
   targetValue: zod.number().optional(),
   icon: zod.string().optional(),
   color: zod.string().optional(),
@@ -592,7 +616,20 @@ export const GetHabitResponse = zod.object({
   name: zod.string(),
   categoryId: zod.number().nullish(),
   goalId: zod.number().nullish(),
-  frequency: zod.enum(["daily", "weekdays", "weekly", "monthly", "custom"]),
+  frequency: zod.enum([
+    "daily",
+    "weekdays",
+    "weekly",
+    "monthly",
+    "yearly",
+    "custom",
+  ]),
+  recurrenceConfig: zod
+    .string()
+    .nullish()
+    .describe(
+      "JSON string with custom recurrence config (interval, unit, daysOfWeek)",
+    ),
   targetValue: zod.number().nullish(),
   icon: zod.string().nullish(),
   color: zod.string().nullish(),
@@ -621,8 +658,12 @@ export const UpdateHabitBody = zod.object({
   categoryId: zod.number().optional(),
   goalId: zod.number().optional(),
   frequency: zod
-    .enum(["daily", "weekdays", "weekly", "monthly", "custom"])
+    .enum(["daily", "weekdays", "weekly", "monthly", "yearly", "custom"])
     .optional(),
+  recurrenceConfig: zod
+    .string()
+    .optional()
+    .describe("JSON string with custom recurrence config"),
   targetValue: zod.number().optional(),
   icon: zod.string().optional(),
   color: zod.string().optional(),
@@ -644,7 +685,20 @@ export const UpdateHabitResponse = zod.object({
   name: zod.string(),
   categoryId: zod.number().nullish(),
   goalId: zod.number().nullish(),
-  frequency: zod.enum(["daily", "weekdays", "weekly", "monthly", "custom"]),
+  frequency: zod.enum([
+    "daily",
+    "weekdays",
+    "weekly",
+    "monthly",
+    "yearly",
+    "custom",
+  ]),
+  recurrenceConfig: zod
+    .string()
+    .nullish()
+    .describe(
+      "JSON string with custom recurrence config (interval, unit, daysOfWeek)",
+    ),
   targetValue: zod.number().nullish(),
   icon: zod.string().nullish(),
   color: zod.string().nullish(),
@@ -709,6 +763,7 @@ export const ListHabitLogsResponseItem = zod.object({
   userId: zod.string(),
   habitId: zod.number(),
   logDate: zod.string(),
+  status: zod.enum(["done", "skipped", "missed"]),
   value: zod.number().nullish(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
@@ -721,8 +776,32 @@ export const ListHabitLogsResponse = zod.array(ListHabitLogsResponseItem);
 export const LogHabitBody = zod.object({
   habitId: zod.number(),
   logDate: zod.string(),
+  status: zod.enum(["done", "skipped", "missed"]).optional(),
   value: zod.number().optional(),
   notes: zod.string().optional(),
+});
+
+/**
+ * @summary Update a habit log (change status)
+ */
+export const UpdateHabitLogParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateHabitLogBody = zod.object({
+  status: zod.enum(["done", "skipped", "missed"]).optional(),
+  notes: zod.string().optional(),
+});
+
+export const UpdateHabitLogResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  habitId: zod.number(),
+  logDate: zod.string(),
+  status: zod.enum(["done", "skipped", "missed"]),
+  value: zod.number().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string(),
 });
 
 /**

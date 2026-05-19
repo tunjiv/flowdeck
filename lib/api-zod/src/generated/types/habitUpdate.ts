@@ -13,6 +13,8 @@ export interface HabitUpdate {
   categoryId?: number;
   goalId?: number;
   frequency?: HabitUpdateFrequency;
+  /** JSON string with custom recurrence config */
+  recurrenceConfig?: string;
   targetValue?: number;
   icon?: string;
   color?: string;

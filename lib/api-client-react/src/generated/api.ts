@@ -32,6 +32,7 @@ import type {
   HabitInput,
   HabitLog,
   HabitLogInput,
+  HabitLogUpdate,
   HabitStreak,
   HabitUpdate,
   HealthStatus,
@@ -3277,6 +3278,93 @@ export const useLogHabit = <
   TContext
 > => {
   return useMutation(getLogHabitMutationOptions(options));
+};
+
+/**
+ * @summary Update a habit log (change status)
+ */
+export const getUpdateHabitLogUrl = (id: number) => {
+  return `/api/habit-logs/${id}`;
+};
+
+export const updateHabitLog = async (
+  id: number,
+  habitLogUpdate: HabitLogUpdate,
+  options?: RequestInit,
+): Promise<HabitLog> => {
+  return customFetch<HabitLog>(getUpdateHabitLogUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(habitLogUpdate),
+  });
+};
+
+export const getUpdateHabitLogMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateHabitLog>>,
+    TError,
+    { id: number; data: BodyType<HabitLogUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateHabitLog>>,
+  TError,
+  { id: number; data: BodyType<HabitLogUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateHabitLog"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateHabitLog>>,
+    { id: number; data: BodyType<HabitLogUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateHabitLog(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateHabitLogMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateHabitLog>>
+>;
+export type UpdateHabitLogMutationBody = BodyType<HabitLogUpdate>;
+export type UpdateHabitLogMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a habit log (change status)
+ */
+export const useUpdateHabitLog = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateHabitLog>>,
+    TError,
+    { id: number; data: BodyType<HabitLogUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateHabitLog>>,
+  TError,
+  { id: number; data: BodyType<HabitLogUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateHabitLogMutationOptions(options));
 };
 
 /**

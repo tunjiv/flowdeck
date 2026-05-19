@@ -16,6 +16,11 @@ export interface Habit {
   /** @nullable */
   goalId?: number | null;
   frequency: HabitFrequency;
+  /**
+   * JSON string with custom recurrence config (interval, unit, daysOfWeek)
+   * @nullable
+   */
+  recurrenceConfig?: string | null;
   /** @nullable */
   targetValue?: number | null;
   /** @nullable */

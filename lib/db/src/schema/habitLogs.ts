@@ -7,6 +7,7 @@ export const habitLogsTable = pgTable("habit_logs", {
   userId: text("user_id").notNull(),
   habitId: integer("habit_id").notNull(),
   logDate: text("log_date").notNull(),
+  status: text("status").notNull().default("done"),
   value: real("value"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
