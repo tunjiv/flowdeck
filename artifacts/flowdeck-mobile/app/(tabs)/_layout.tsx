@@ -51,7 +51,7 @@ function NativeTabLayout() {
           <Label>Habits</Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="focus">
-          <Icon sf={{ default: "timer", selected: "timer.fill" }} />
+          <Icon sf={{ default: "timer", selected: "clock.fill" }} />
           <Label>Focus</Label>
         </NativeTabs.Trigger>
       </NativeTabs>

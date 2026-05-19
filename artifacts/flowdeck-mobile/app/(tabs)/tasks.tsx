@@ -27,12 +27,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 
-type Priority = "high" | "medium" | "low";
+type Priority = "urgent" | "high" | "normal" | "low";
 type TaskFilter = "today" | "pending" | "completed";
 
 const PRIORITY_COLORS: Record<Priority, string> = {
+  urgent: "#dc2626",
   high: "#ef4444",
-  medium: "#f59e0b",
+  normal: "#f59e0b",
   low: "#22c55e",
 };
 
@@ -45,7 +46,7 @@ export default function TasksScreen() {
   const [filter, setFilter] = useState<TaskFilter>("pending");
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [newPriority, setNewPriority] = useState<Priority>("medium");
+  const [newPriority, setNewPriority] = useState<Priority>("normal");
   const [newGoalId, setNewGoalId] = useState<number | null>(null);
   const [newDueDate, setNewDueDate] = useState("");
   const [saving, setSaving] = useState(false);
@@ -101,7 +102,7 @@ export default function TasksScreen() {
       await queryClient.invalidateQueries({ queryKey: ["listTasks"] });
       setShowAdd(false);
       setNewTitle("");
-      setNewPriority("medium");
+      setNewPriority("normal");
       setNewGoalId(null);
       setNewDueDate("");
     } catch {

@@ -225,7 +225,7 @@ export default function DashboardScreen() {
               return (
                 <View key={habit.id} style={[s.habitRow, { borderTopColor: colors.border }]}>
                   <Text style={[s.habitName, { color: done ? colors.mutedForeground : colors.foreground, textDecorationLine: done ? "line-through" : "none" }]} numberOfLines={1}>
-                    {habit.title}
+                    {habit.name}
                   </Text>
                   <Pressable
                     style={[s.miniCheck, { borderColor: done ? colors.primary : colors.border, backgroundColor: done ? colors.primary : "transparent" }]}

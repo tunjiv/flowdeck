@@ -104,14 +104,14 @@ export default function GoalDetailScreen() {
                   <Text style={[s.progressPct, { color: colors.primary }]}>{Math.round(progressPct * 100)}%</Text>
                 </View>
               )}
-              {(progress?.completedTasks !== undefined || progress?.pendingTasks !== undefined) && (
+              {totalTasks > 0 && (
                 <View style={s.statsRow}>
                   <View style={s.statItem}>
-                    <Text style={[s.statValue, { color: colors.foreground }]}>{progress?.completedTasks ?? doneTasks}</Text>
+                    <Text style={[s.statValue, { color: colors.foreground }]}>{doneTasks}</Text>
                     <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Done</Text>
                   </View>
                   <View style={s.statItem}>
-                    <Text style={[s.statValue, { color: colors.foreground }]}>{progress?.pendingTasks ?? (totalTasks - doneTasks)}</Text>
+                    <Text style={[s.statValue, { color: colors.foreground }]}>{totalTasks - doneTasks}</Text>
                     <Text style={[s.statLabel, { color: colors.mutedForeground }]}>Pending</Text>
                   </View>
                 </View>

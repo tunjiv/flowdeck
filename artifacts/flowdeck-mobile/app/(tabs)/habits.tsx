@@ -33,12 +33,12 @@ const today = new Date().toISOString().split("T")[0]!;
 function HabitStreakBadge({ habitId }: { habitId: number }) {
   const colors = useColors();
   const { data } = useGetHabitStreaks(habitId);
-  if (!data?.current) return null;
+  if (!data?.currentStreak) return null;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
       <Feather name="zap" size={12} color="#f59e0b" />
       <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#f59e0b", fontWeight: "600" }}>
-        {data.current}
+        {data.currentStreak}
       </Text>
     </View>
   );
@@ -108,7 +108,7 @@ export default function HabitsScreen() {
     setSaving(true);
     try {
       await createHabit.mutateAsync({
-        data: { title: newTitle.trim(), ...(newDesc ? { description: newDesc.trim() } : {}) },
+        data: { name: newTitle.trim(), frequency: "daily", ...(newDesc ? { motivationNote: newDesc.trim() } : {}) },
       });
       await queryClient.invalidateQueries({ queryKey: ["listHabits"] });
       setShowAdd(false);
@@ -177,15 +177,15 @@ export default function HabitsScreen() {
             return (
               <Pressable
                 style={[s.card, { backgroundColor: colors.card, borderColor: done ? colors.primary + "40" : colors.border }]}
-                onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleDelete(item.id, item.title); }}
+                onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleDelete(item.id, item.name); }}
                 testID={`habit-card-${item.id}`}
               >
                 <View style={s.cardLeft}>
                   <Text style={[s.cardTitle, { color: colors.cardForeground, textDecorationLine: done ? "line-through" : "none" }]}>
-                    {item.title}
+                    {item.name}
                   </Text>
-                  {item.description ? (
-                    <Text style={[s.cardDesc, { color: colors.mutedForeground }]} numberOfLines={1}>{item.description}</Text>
+                  {item.motivationNote ? (
+                    <Text style={[s.cardDesc, { color: colors.mutedForeground }]} numberOfLines={1}>{item.motivationNote}</Text>
                   ) : null}
                   <HabitStreakBadge habitId={item.id} />
                 </View>
