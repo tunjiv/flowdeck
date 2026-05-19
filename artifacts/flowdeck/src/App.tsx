@@ -20,6 +20,7 @@ import Focus from "@/pages/Focus";
 import Settings from "@/pages/Settings";
 import WeeklyReview from "@/pages/WeeklyReview";
 import NotFound from "@/pages/not-found";
+import { CookieBanner } from "@/components/CookieBanner";
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -229,6 +230,7 @@ function AppRouter() {
           <Route component={NotFound} />
         </Switch>
         <Toaster richColors position="top-right" />
+        <CookieBanner />
       </QueryClientProvider>
     </ClerkProvider>
   );

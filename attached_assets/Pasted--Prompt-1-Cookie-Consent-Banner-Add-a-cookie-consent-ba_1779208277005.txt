@@ -1,0 +1,52 @@
+
+Prompt 1: Cookie Consent Banner
+
+"Add a cookie consent banner to the app that appears at the bottom of the screen the first time a user visits. The banner should include a short message explaining that the app uses a security cookie to recognise trusted devices and improve login safety. It should have two buttons: Accept and Decline. If the user clicks Accept, store a cookie named cookie_consent set to true with an expiry of 365 days, and proceed to store the known_device fingerprint cookie. If the user clicks Decline, do not store any cookies beyond what is strictly necessary for the session to function. The banner should not appear again once the user has made a choice. The banner should be accessible, mobile-friendly, and include a link to the privacy policy page. Also add a privacy policy page that discloses the use of the device fingerprint cookie, what data is collected, why it is stored, and how long it is retained."
+
+
+Prompt 2: Filter, Sort, and Goal & Task Management
+
+"Add the following filtering, sorting, and management features to the goals and tasks sections of the app:
+Filtering — Goals:
+Allow users to filter goals by the following parameters:
+
+Status: All, Not Started, In Progress, Completed, Overdue
+Priority: All, High, Medium, Low
+Category or tag if one exists
+Date range: filter by goals created between two dates, or goals due between two dates
+Custom date: allow the user to pick a specific due date and show only goals due on that date
+
+Filtering — Tasks:
+Allow users to filter tasks by the following parameters:
+
+Status: All, Pending, In Progress, Completed, Overdue
+Priority: All, High, Medium, Low
+Associated goal: filter tasks that belong to a specific goal
+Date range: filter by tasks created between two dates, or tasks due between two dates
+Custom date: allow the user to pick a specific due date and show only tasks due on that date
+
+Sorting — Goals and Tasks:
+Allow users to sort by the following parameters:
+
+Due date: soonest first or latest first
+Created date: newest first or oldest first
+Priority: highest first or lowest first
+Alphabetical: A to Z or Z to A
+Status: group by status
+
+Additional UX improvements:
+
+Persist the user's last selected filter and sort preferences so they are restored when they return to the page
+Show a count of results after filtering so the user knows how many goals or tasks match
+Add a clear filters button that resets all filters and sort options to default
+If no results match the filter, show a friendly empty state message instead of a blank screen
+On mobile, collapse filters into a dropdown or slide-in panel to save space
+Add a date picker for the custom date filter that works on both desktop and mobile
+Highlight overdue goals and tasks visually with a distinct colour or label so they are immediately obvious
+Allow multi-select on filters so a user can for example view both High and Medium priority goals at the same time
+Add a search bar to filter goals and tasks by keyword in the title or description"
+
+
+
+Parameters You Would Have Missed
+ParameterWhy It MattersCustom date pickerLets users find exactly what is due on a specific dayKeyword searchFastest way to find a specific goal or taskAssociated goal filter on tasksLets users see all tasks tied to one goalMulti-select filtersMore flexible than single-select dropdownsPersist filter preferencesAvoids frustration of resetting filters on every visitResult countConfirms the filter is working and how many items matchEmpty state messagePrevents a confusing blank screen when nothing matchesMobile-collapsed filtersEssential for small screensOverdue visual highlightDraws attention to what needs urgent action

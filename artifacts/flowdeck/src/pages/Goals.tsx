@@ -1,15 +1,14 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import {
-  useListGoals,
-  useCreateGoal,
-  useUpdateGoal,
-  useDeleteGoal,
-  useListCategories,
+  useListGoals, useCreateGoal, useUpdateGoal, useDeleteGoal, useListCategories,
   getListGoalsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Target, ChevronRight, Trash2, MoreHorizontal, TrendingUp, CheckCircle2, Circle } from "lucide-react";
+import {
+  Plus, Target, ChevronRight, Trash2, MoreHorizontal, TrendingUp,
+  CheckCircle2, Circle, Filter, X, Search, ArrowUp, ArrowDown, AlertTriangle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -28,6 +27,11 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useGoalMilestoneTracker, checkGoalMilestone } from "@/lib/goalMilestones";
+import { useLocalStorage } from "@/lib/useLocalStorage";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
+const STATUS_RANK: Record<string, number> = { active: 0, paused: 1, completed: 2, archived: 3 };
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
@@ -35,30 +39,80 @@ const statusColors: Record<string, string> = {
   paused: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
   archived: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
-
 const priorityColors: Record<string, string> = {
   high: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   medium: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   low: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
 
-// ── Goal form ─────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function toggleMulti(current: string[], value: string): string[] {
+  if (value === "all") return ["all"];
+  const without = current.filter(v => v !== "all");
+  if (without.includes(value)) {
+    const next = without.filter(v => v !== value);
+    return next.length === 0 ? ["all"] : next;
+  }
+  return [...without, value];
+}
+
+function Chip({
+  label, active, onClick, variant = "default",
+}: {
+  label: string; active: boolean; onClick: () => void; variant?: "default" | "red";
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+        active
+          ? variant === "red"
+            ? "bg-red-500 text-white"
+            : "bg-primary text-primary-foreground"
+          : "bg-muted text-muted-foreground hover:bg-muted/70"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+type GoalFilters = {
+  search: string;
+  statuses: string[];
+  priorities: string[];
+  categoryId: string;
+  dateMode: "none" | "range" | "exact";
+  dateStart: string;
+  dateEnd: string;
+  dateExact: string;
+  sortBy: "dueDate" | "createdAt" | "priority" | "title" | "status";
+  sortDir: "asc" | "desc";
+};
+
+const DEFAULT_FILTERS: GoalFilters = {
+  search: "",
+  statuses: ["all"],
+  priorities: ["all"],
+  categoryId: "",
+  dateMode: "none",
+  dateStart: "",
+  dateEnd: "",
+  dateExact: "",
+  sortBy: "dueDate",
+  sortDir: "asc",
+};
+
+// ── GoalForm ──────────────────────────────────────────────────────────────────
 function GoalForm({
   open, onClose, initial,
 }: {
   open: boolean;
   onClose: () => void;
   initial?: {
-    id: number;
-    title: string;
-    description?: string | null;
-    goalType: string;
-    priority: string;
-    status: string;
-    targetValue?: number | null;
-    currentValue?: number | null;
-    categoryId?: number | null;
-    targetEndDate?: string | null;
+    id: number; title: string; description?: string | null; goalType: string;
+    priority: string; status: string; targetValue?: number | null;
+    currentValue?: number | null; categoryId?: number | null; targetEndDate?: string | null;
   };
 }) {
   const qc = useQueryClient();
@@ -150,7 +204,6 @@ function GoalForm({
               </Select>
             </div>
           </div>
-          {/* Status is always editable */}
           <div>
             <Label>Status</Label>
             <Select value={status} onValueChange={setStatus}>
@@ -203,19 +256,12 @@ function GoalForm({
   );
 }
 
-// ── Quick progress log ────────────────────────────────────────────────────────
+// ── Quick progress input ───────────────────────────────────────────────────────
 function QuickProgressInput({ goal }: {
   goal: {
-    id: number;
-    title: string;
-    goalType: string;
-    currentValue?: number | null;
-    targetValue?: number | null;
-    priority: string;
-    status: string;
-    description?: string | null;
-    categoryId?: number | null;
-    targetEndDate?: string | null;
+    id: number; currentValue?: number | null; targetValue?: number | null;
+    title: string; goalType: string; priority: string; status: string;
+    description?: string | null; categoryId?: number | null; targetEndDate?: string | null;
   }
 }) {
   const qc = useQueryClient();
@@ -227,29 +273,22 @@ function QuickProgressInput({ goal }: {
     const n = Number(delta);
     if (!delta || isNaN(n)) return;
     const newValue = (goal.currentValue ?? 0) + n;
-    update.mutate(
-      { id: goal.id, data: { currentValue: newValue } },
-      {
-        onSuccess: (updated) => {
-          qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
-          checkGoalMilestone(updated);
-          setDelta("");
-          setOpen(false);
-        },
-        onError: () => toast.error("Failed to log progress"),
+    update.mutate({ id: goal.id, data: { currentValue: newValue } }, {
+      onSuccess: (updated) => {
+        qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
+        checkGoalMilestone(updated);
+        setDelta(""); setOpen(false);
       },
-    );
+      onError: () => toast.error("Failed to log progress"),
+    });
   };
 
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
+      <button onClick={() => setOpen(true)}
         className="flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors mt-2"
-        title="Log progress"
-      >
-        <TrendingUp className="w-3.5 h-3.5" />
-        Log progress
+        title="Log progress">
+        <TrendingUp className="w-3.5 h-3.5" />Log progress
       </button>
     );
   }
@@ -257,21 +296,11 @@ function QuickProgressInput({ goal }: {
   return (
     <div className="flex items-center gap-2 mt-2" onClick={e => e.stopPropagation()}>
       <span className="text-xs text-muted-foreground">Add</span>
-      <Input
-        type="number"
-        value={delta}
-        onChange={e => setDelta(e.target.value)}
+      <Input type="number" value={delta} onChange={e => setDelta(e.target.value)}
         onKeyDown={e => { if (e.key === "Enter") handleLog(); if (e.key === "Escape") setOpen(false); }}
-        className="h-7 w-24 text-xs"
-        placeholder="e.g. 5"
-        autoFocus
-      />
-      <Button size="sm" className="h-7 text-xs px-3" onClick={handleLog} disabled={update.isPending}>
-        Save
-      </Button>
-      <button onClick={() => { setDelta(""); setOpen(false); }} className="text-xs text-muted-foreground hover:text-foreground">
-        Cancel
-      </button>
+        className="h-7 w-24 text-xs" placeholder="e.g. 5" autoFocus />
+      <Button size="sm" className="h-7 text-xs px-3" onClick={handleLog} disabled={update.isPending}>Save</Button>
+      <button onClick={() => { setDelta(""); setOpen(false); }} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
     </div>
   );
 }
@@ -280,33 +309,87 @@ function QuickProgressInput({ goal }: {
 export default function Goals() {
   const qc = useQueryClient();
   const { data: goals, isLoading } = useListGoals();
+  const { data: categories = [] } = useListCategories();
   const deleteGoal = useDeleteGoal();
   const updateGoal = useUpdateGoal();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editGoal, setEditGoal] = useState<typeof goals extends Array<infer T> ? T : any | null>(null);
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(() => window.innerWidth >= 768);
+  const [filters, setFilters] = useLocalStorage<GoalFilters>("goals_filters_v2", DEFAULT_FILTERS);
 
-  // Milestone notifications — fires toasts when a goal crosses 25/50/75/100%
   useGoalMilestoneTracker(goals);
 
-  const filtered = goals?.filter(g => filterStatus === "all" || g.status === filterStatus) ?? [];
+  const today = new Date().toISOString().split("T")[0];
 
-  // Sort by due date: goals with a date come first (ascending), then undated goals
-  const sorted = [...filtered].sort((a, b) => {
-    if (!a.targetEndDate && !b.targetEndDate) return 0;
-    if (!a.targetEndDate) return 1;
-    if (!b.targetEndDate) return -1;
-    return a.targetEndDate.localeCompare(b.targetEndDate);
-  });
+  const isGoalOverdue = (g: NonNullable<typeof goals>[number]) =>
+    !!(g.targetEndDate && g.targetEndDate < today && g.status !== "completed" && g.status !== "archived");
+
+  const filtered = useMemo(() => {
+    const f = filters;
+    return (goals ?? []).filter(g => {
+      if (f.search) {
+        const q = f.search.toLowerCase();
+        if (!g.title.toLowerCase().includes(q) && !(g.description ?? "").toLowerCase().includes(q))
+          return false;
+      }
+      if (!f.statuses.includes("all")) {
+        const overdue = isGoalOverdue(g);
+        const match = (f.statuses.includes("overdue") && overdue) || f.statuses.includes(g.status);
+        if (!match) return false;
+      }
+      if (!f.priorities.includes("all") && !f.priorities.includes(g.priority)) return false;
+      if (f.categoryId && String(g.categoryId ?? "") !== f.categoryId) return false;
+      if (f.dateMode === "exact" && f.dateExact && g.targetEndDate !== f.dateExact) return false;
+      if (f.dateMode === "range") {
+        if (f.dateStart && (g.targetEndDate ?? "") < f.dateStart) return false;
+        if (f.dateEnd && (g.targetEndDate ?? "") > f.dateEnd) return false;
+      }
+      return true;
+    });
+  }, [goals, filters]);
+
+  const sorted = useMemo(() => {
+    const dir = filters.sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (filters.sortBy) {
+        case "dueDate":
+          if (!a.targetEndDate && !b.targetEndDate) return 0;
+          if (!a.targetEndDate) return dir; if (!b.targetEndDate) return -dir;
+          return a.targetEndDate.localeCompare(b.targetEndDate) * dir;
+        case "createdAt":
+          return ((a as any).createdAt ?? "").localeCompare((b as any).createdAt ?? "") * dir;
+        case "priority":
+          return ((PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99)) * dir;
+        case "title":
+          return a.title.localeCompare(b.title) * dir;
+        case "status":
+          return ((STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99)) * dir;
+        default: return 0;
+      }
+    });
+  }, [filtered, filters.sortBy, filters.sortDir]);
+
+  const isFiltered =
+    filters.search !== "" || !filters.statuses.includes("all") ||
+    !filters.priorities.includes("all") || filters.categoryId !== "" || filters.dateMode !== "none";
+
+  const activeFilterCount = [
+    filters.search !== "",
+    !filters.statuses.includes("all"),
+    !filters.priorities.includes("all"),
+    filters.categoryId !== "",
+    filters.dateMode !== "none",
+  ].filter(Boolean).length;
+
+  const clearFilters = () => setFilters(DEFAULT_FILTERS);
+
+  const setF = (patch: Partial<GoalFilters>) => setFilters({ ...filters, ...patch });
 
   const handleDelete = (id: number) => {
     if (!confirm("Delete this goal?")) return;
     deleteGoal.mutate({ id }, {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
-        toast.success("Goal deleted");
-      },
+      onSuccess: () => { qc.invalidateQueries({ queryKey: getListGoalsQueryKey() }); toast.success("Goal deleted"); },
     });
   };
 
@@ -322,7 +405,8 @@ export default function Goals() {
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-5">
+    <div className="p-6 max-w-3xl mx-auto space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Goals</h1>
@@ -333,29 +417,166 @@ export default function Goals() {
         </Button>
       </div>
 
-      {/* Filter */}
-      <div className="flex gap-2 flex-wrap">
-        {["all", "active", "completed", "paused"].map(s => (
-          <button
-            key={s}
-            data-testid={`filter-${s}`}
-            onClick={() => setFilterStatus(s)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize ${
-              filterStatus === s
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/70"
-            }`}
-          >
-            {s}
-            {s !== "all" && goals && (
-              <span className="ml-1 opacity-60">
-                ({goals.filter(g => g.status === s).length})
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Search + filter toggle */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <Input
+            value={filters.search}
+            onChange={e => setF({ search: e.target.value })}
+            placeholder="Search goals by title or description…"
+            className="pl-9"
+          />
+          {filters.search && (
+            <button onClick={() => setF({ search: "" })} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setFiltersOpen(v => !v)}
+          className={filtersOpen ? "bg-muted" : ""}
+          title="Toggle filters"
+        >
+          <Filter className="w-4 h-4" />
+          {activeFilterCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
       </div>
 
+      {/* Filter + sort panel */}
+      {filtersOpen && (
+        <div className="space-y-3 p-4 bg-muted/30 rounded-xl border border-border">
+          {/* Status chips */}
+          <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground pt-0.5 w-14 flex-shrink-0">Status</span>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { value: "all", label: "All" },
+                { value: "active", label: "Active" },
+                { value: "completed", label: "Completed" },
+                { value: "paused", label: "Paused" },
+                { value: "archived", label: "Archived" },
+                { value: "overdue", label: "Overdue" },
+              ].map(s => (
+                <Chip key={s.value} label={s.label}
+                  active={filters.statuses.includes(s.value)}
+                  onClick={() => setF({ statuses: toggleMulti(filters.statuses, s.value) })}
+                  variant={s.value === "overdue" ? "red" : "default"}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Priority chips */}
+          <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground pt-0.5 w-14 flex-shrink-0">Priority</span>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { value: "all", label: "All" },
+                { value: "high", label: "High" },
+                { value: "medium", label: "Medium" },
+                { value: "low", label: "Low" },
+              ].map(p => (
+                <Chip key={p.value} label={p.label}
+                  active={filters.priorities.includes(p.value)}
+                  onClick={() => setF({ priorities: toggleMulti(filters.priorities, p.value) })}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Category + Date + Sort */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Category */}
+            {categories.length > 0 && (
+              <Select value={filters.categoryId || "all"} onValueChange={v => setF({ categoryId: v === "all" ? "" : v })}>
+                <SelectTrigger className="h-8 text-xs w-[150px]">
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  {categories.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Date filter mode */}
+            <Select value={filters.dateMode} onValueChange={v => setF({ dateMode: v as GoalFilters["dateMode"] })}>
+              <SelectTrigger className="h-8 text-xs w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Any due date</SelectItem>
+                <SelectItem value="exact">Specific date</SelectItem>
+                <SelectItem value="range">Date range</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {filters.dateMode === "exact" && (
+              <Input type="date" value={filters.dateExact} onChange={e => setF({ dateExact: e.target.value })}
+                className="h-8 text-xs w-[150px]" />
+            )}
+            {filters.dateMode === "range" && (
+              <>
+                <Input type="date" value={filters.dateStart} onChange={e => setF({ dateStart: e.target.value })}
+                  className="h-8 text-xs w-[140px]" placeholder="From" />
+                <span className="text-xs text-muted-foreground">—</span>
+                <Input type="date" value={filters.dateEnd} onChange={e => setF({ dateEnd: e.target.value })}
+                  className="h-8 text-xs w-[140px]" placeholder="To" />
+              </>
+            )}
+
+            {/* Sort */}
+            <div className="flex items-center gap-1 ml-auto">
+              <Select value={filters.sortBy} onValueChange={v => setF({ sortBy: v as GoalFilters["sortBy"] })}>
+                <SelectTrigger className="h-8 text-xs w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dueDate">Due date</SelectItem>
+                  <SelectItem value="createdAt">Created date</SelectItem>
+                  <SelectItem value="priority">Priority</SelectItem>
+                  <SelectItem value="title">A → Z</SelectItem>
+                  <SelectItem value="status">Status</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="icon" className="h-8 w-8"
+                onClick={() => setF({ sortDir: filters.sortDir === "asc" ? "desc" : "asc" })}
+                title={filters.sortDir === "asc" ? "Ascending" : "Descending"}>
+                {filters.sortDir === "asc"
+                  ? <ArrowUp className="w-3.5 h-3.5" />
+                  : <ArrowDown className="w-3.5 h-3.5" />}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Result count + clear */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {isLoading ? "Loading…" : (
+            <>
+              <span className="font-medium text-foreground">{sorted.length}</span>
+              {" "}goal{sorted.length !== 1 ? "s" : ""}
+              {isFiltered && goals && ` of ${goals.length}`}
+            </>
+          )}
+        </p>
+        {isFiltered && (
+          <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-3 h-3" /> Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Goal list */}
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
@@ -364,17 +585,17 @@ export default function Goals() {
         <div className="text-center py-16">
           <Target className="w-12 h-12 text-muted mx-auto mb-3" />
           <h3 className="font-semibold text-foreground mb-1">
-            {filterStatus === "all" ? "No goals yet" : `No ${filterStatus} goals`}
+            {isFiltered ? "No goals match your filters" : "No goals yet"}
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
-            {filterStatus === "all"
-              ? "Set your first goal and start making progress."
-              : `You have no goals with "${filterStatus}" status.`}
+            {isFiltered
+              ? "Try adjusting or clearing your filters."
+              : "Set your first goal and start making progress."}
           </p>
-          {filterStatus === "all" && (
-            <Button onClick={() => setFormOpen(true)}>
-              <Plus className="w-4 h-4 mr-1.5" /> Create your first goal
-            </Button>
+          {isFiltered ? (
+            <Button variant="outline" onClick={clearFilters}><X className="w-4 h-4 mr-1.5" /> Clear filters</Button>
+          ) : (
+            <Button onClick={() => setFormOpen(true)}><Plus className="w-4 h-4 mr-1.5" /> Create your first goal</Button>
           )}
         </div>
       ) : (
@@ -383,28 +604,19 @@ export default function Goals() {
             const pct = goal.targetValue && goal.targetValue > 0
               ? Math.min(100, Math.round(((goal.currentValue ?? 0) / goal.targetValue) * 100))
               : 0;
-
+            const overdue = isGoalOverdue(goal);
             const isCompleted = goal.status === "completed";
-
-            // Milestone ring color
             const milestoneColor =
-              pct >= 100 ? "text-primary" :
-              pct >= 75  ? "text-orange-500" :
-              pct >= 50  ? "text-amber-500" :
-              pct >= 25  ? "text-blue-500" :
-              "text-muted-foreground";
+              pct >= 100 ? "text-primary" : pct >= 75 ? "text-orange-500" :
+              pct >= 50 ? "text-amber-500" : pct >= 25 ? "text-blue-500" : "text-muted-foreground";
 
             return (
-              <Card key={goal.id} data-testid={`goal-${goal.id}`} className={`border-border hover:shadow-sm transition-shadow ${isCompleted ? "opacity-70" : ""}`}>
+              <Card key={goal.id} data-testid={`goal-${goal.id}`}
+                className={`border-border hover:shadow-sm transition-shadow ${isCompleted ? "opacity-70" : ""} ${overdue ? "border-l-4 border-l-red-400" : ""}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
-                    {/* Completion checkbox */}
-                    <button
-                      onClick={() => handleToggleComplete(goal)}
-                      className="mt-0.5 flex-shrink-0 transition-colors"
-                      title={isCompleted ? "Mark as active" : "Mark as complete"}
-                      disabled={updateGoal.isPending}
-                    >
+                    <button onClick={() => handleToggleComplete(goal)} className="mt-0.5 flex-shrink-0 transition-colors"
+                      title={isCompleted ? "Mark as active" : "Mark as complete"} disabled={updateGoal.isPending}>
                       {isCompleted
                         ? <CheckCircle2 className="w-5 h-5 text-primary" />
                         : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />}
@@ -413,12 +625,13 @@ export default function Goals() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                         <span className={`font-semibold text-foreground ${isCompleted ? "line-through" : ""}`}>{goal.title}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[goal.status]}`}>
-                          {goal.status}
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${priorityColors[goal.priority]}`}>
-                          {goal.priority}
-                        </span>
+                        {overdue && (
+                          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                            <AlertTriangle className="w-3 h-3" /> Overdue
+                          </span>
+                        )}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[goal.status]}`}>{goal.status}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${priorityColors[goal.priority]}`}>{goal.priority}</span>
                         {pct >= 25 && goal.goalType === "quantitative" && (
                           <span className={`text-xs font-semibold ${milestoneColor}`}>
                             {pct >= 100 ? "🏆 Complete" : pct >= 75 ? "🔥 Almost there" : pct >= 50 ? "⚡ Halfway" : "🎯 Started"}
@@ -435,15 +648,16 @@ export default function Goals() {
                             <span className="font-medium">{pct}%</span>
                           </div>
                           <Progress value={pct} className="h-1.5" />
-                          {goal.status === "active" && (
-                            <QuickProgressInput goal={goal} />
-                          )}
+                          {goal.status === "active" && <QuickProgressInput goal={goal} />}
                         </div>
                       )}
                       {goal.targetEndDate && (
-                        <p className="text-xs text-muted-foreground mt-1.5">Due {goal.targetEndDate}</p>
+                        <p className={`text-xs mt-1.5 ${overdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                          {overdue ? "Was due" : "Due"} {goal.targetEndDate}
+                        </p>
                       )}
                     </div>
+
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <Link href={`/goals/${goal.id}`}>
                         <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -457,18 +671,11 @@ export default function Goals() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { setEditGoal(goal); setFormOpen(true); }}>
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleToggleComplete(goal)}
-                          >
+                          <DropdownMenuItem onClick={() => { setEditGoal(goal); setFormOpen(true); }}>Edit</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleToggleComplete(goal)}>
                             {isCompleted ? "Reopen goal" : "Mark complete"}
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => handleDelete(goal.id)}
-                          >
+                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDelete(goal.id)}>
                             <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -482,7 +689,6 @@ export default function Goals() {
         </div>
       )}
 
-      {/* key prop ensures form re-initializes correctly when switching between edit targets */}
       <GoalForm
         key={editGoal?.id ?? "new"}
         open={formOpen}
