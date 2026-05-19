@@ -6,12 +6,11 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Plus, Target, ChevronRight, Trash2, MoreHorizontal, TrendingUp,
+  Plus, Target, ChevronRight, Trash2, MoreHorizontal,
   CheckCircle2, Circle, Filter, X, Search, Check, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -298,55 +297,6 @@ function GoalForm({
   );
 }
 
-// ── Quick progress input ───────────────────────────────────────────────────────
-function QuickProgressInput({ goal }: {
-  goal: {
-    id: number; currentValue?: number | null; targetValue?: number | null;
-    title: string; goalType: string; priority: string; status: string;
-    description?: string | null; categoryId?: number | null; targetEndDate?: string | null;
-  }
-}) {
-  const qc = useQueryClient();
-  const update = useUpdateGoal();
-  const [delta, setDelta] = useState("");
-  const [open, setOpen] = useState(false);
-
-  const handleLog = () => {
-    const n = Number(delta);
-    if (!delta || isNaN(n)) return;
-    const newValue = (goal.currentValue ?? 0) + n;
-    update.mutate({ id: goal.id, data: { currentValue: newValue } }, {
-      onSuccess: (updated) => {
-        qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
-        checkGoalMilestone(updated);
-        setDelta(""); setOpen(false);
-      },
-      onError: () => toast.error("Failed to log progress"),
-    });
-  };
-
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)}
-        className="flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors mt-2"
-        title="Log progress">
-        <TrendingUp className="w-3.5 h-3.5" />Log progress
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2 mt-2" onClick={e => e.stopPropagation()}>
-      <span className="text-xs text-muted-foreground">Add</span>
-      <Input type="number" value={delta} onChange={e => setDelta(e.target.value)}
-        onKeyDown={e => { if (e.key === "Enter") handleLog(); if (e.key === "Escape") setOpen(false); }}
-        className="h-7 w-24 text-xs" placeholder="e.g. 5" autoFocus />
-      <Button size="sm" className="h-7 text-xs px-3" onClick={handleLog} disabled={update.isPending}>Save</Button>
-      <button onClick={() => { setDelta(""); setOpen(false); }} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
-    </div>
-  );
-}
-
 // ── GoalCard ──────────────────────────────────────────────────────────────────
 function GoalCard({
   goal, overdue, onToggleComplete, onEdit, onDelete, isPending,
@@ -359,9 +309,6 @@ function GoalCard({
   isPending: boolean;
 }) {
   const isCompleted = goal.status === "completed";
-  const pct = goal.targetValue && goal.targetValue > 0
-    ? Math.min(100, Math.round(((goal.currentValue ?? 0) / goal.targetValue) * 100))
-    : 0;
 
   return (
     <Card
@@ -393,18 +340,6 @@ function GoalCard({
                 {goal.priority}
               </span>
             </div>
-
-            {/* Progress (quantitative goals) */}
-            {goal.goalType === "quantitative" && (
-              <div className="mt-2">
-                <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                  <span>{goal.currentValue ?? 0} / {goal.targetValue ?? "—"}</span>
-                  <span className="font-medium">{pct}%</span>
-                </div>
-                <Progress value={pct} className="h-1.5" />
-                {goal.status === "active" && <QuickProgressInput goal={goal} />}
-              </div>
-            )}
 
             {/* Due date */}
             {goal.targetEndDate && (
@@ -514,12 +449,12 @@ export default function Goals() {
   const overdueGoals     = sorted.filter(g => isGoalOverdue(g));
   const dueThisWeekGoals = sorted.filter(g =>
     !isGoalOverdue(g) &&
-    g.status !== "completed" && g.status !== "archived" &&
+    g.status === "active" &&
     g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd
   );
   const activeGoals      = sorted.filter(g =>
     !isGoalOverdue(g) &&
-    g.status !== "completed" && g.status !== "archived" &&
+    g.status === "active" &&
     !(g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd)
   );
   const completedGoals   = sorted.filter(g => g.status === "completed");
