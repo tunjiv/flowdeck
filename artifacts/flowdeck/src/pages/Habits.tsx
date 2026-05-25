@@ -558,6 +558,7 @@ export default function Habits() {
   const [formOpen, setFormOpen] = useState(false);
   const [editHabit, setEditHabit] = useState<any>(null);
   const [presetGoalId, setPresetGoalId] = useState<number | undefined>(undefined);
+  const [formNonce, setFormNonce] = useState(0);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"habits" | "trends">("habits");
 
@@ -1004,9 +1005,9 @@ export default function Habits() {
       )}
 
       <HabitForm
-        key={editHabit?.id ?? (presetGoalId ? `new-g${presetGoalId}` : "new")}
+        key={editHabit?.id ? `edit-${editHabit.id}` : `new-${presetGoalId ?? "x"}-${formNonce}`}
         open={formOpen}
-        onClose={() => { setFormOpen(false); setEditHabit(null); setPresetGoalId(undefined); }}
+        onClose={() => { setFormOpen(false); setEditHabit(null); setPresetGoalId(undefined); setFormNonce(n => n + 1); }}
         initial={editHabit ?? undefined}
         presetGoalId={editHabit ? undefined : presetGoalId}
       />
