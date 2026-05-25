@@ -8,6 +8,7 @@ import {
   useUpdateGoal,
   getListGoalsQueryKey,
   getGetGoalQueryKey,
+  getGetGoalProgressQueryKey,
   getListHabitLogsQueryKey,
   useLogHabit,
   useUpdateHabitLog,
@@ -97,6 +98,40 @@ export default function GoalDetail() {
     return progress?.percent ?? 0;
   }, [tasks, linkedHabits, logsByKey, progress, goal]);
 
+  // For non-quantitative goals, cap displayed progress at 99% while the goal is still active.
+  // A milestone/habit goal isn't "done" until the user explicitly marks it complete — showing
+  // 100% on an active goal reads as finished and is misleading.
+  const isActiveNonQuant =
+    goal?.status === "active" &&
+    (goal?.goalType === "milestone" || goal?.goalType === "habit");
+  const computedAtOrAboveFull = isActiveNonQuant && computedProgress >= 100;
+  const displayPct = computedAtOrAboveFull ? 99 : computedProgress;
+
+  // Strict completion predicate: every linked task is completed AND every linked habit has
+  // been marked "done" today. Only then is the CTA copy "all linked items are done" truthful.
+  // (Weekly habit-rate rounding can push computedProgress to 100 even when habits are not fully
+  // done — those cases get a softer prompt instead.)
+  const allTasksDone = (tasks?.length ?? 0) > 0
+    ? tasks!.every(t => t.status === "completed")
+    : true;
+  const allHabitsDoneToday = linkedHabits.length > 0
+    ? linkedHabits.every(h => todayLogsByHabit[h.id]?.status === "done")
+    : true;
+  const hasAnyLinkedItem = (tasks?.length ?? 0) > 0 || linkedHabits.length > 0;
+  const strictlyDone = isActiveNonQuant && hasAnyLinkedItem && allTasksDone && allHabitsDoneToday;
+  const showCompleteCta = computedAtOrAboveFull; // surface CTA whenever display is capped
+
+  const handleMarkComplete = () => {
+    updateGoal.mutate({ id: goalId, data: { status: "completed" } }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetGoalQueryKey(goalId) });
+        qc.invalidateQueries({ queryKey: getGetGoalProgressQueryKey(goalId) });
+        qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
+        toast.success("Goal marked complete");
+      },
+    });
+  };
+
   // Amber warning: only when ALL linked habits are below 50% this week (true risk signal)
   const weakHabits = linkedHabits.filter(h => {
     const done = last7.filter(d => logsByKey[`${h.id}:${d}`]?.status === "done").length;
@@ -157,7 +192,7 @@ export default function GoalDetail() {
     );
   }
 
-  const pct = computedProgress;
+  const pct = displayPct;
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5">
@@ -205,6 +240,18 @@ export default function GoalDetail() {
             <span className="text-2xl font-bold text-primary">{pct}%</span>
           </div>
           <Progress value={pct} className="h-3 mb-3" />
+          {showCompleteCta && (
+            <div className="flex items-center justify-between gap-3 mb-3 p-2.5 rounded-lg bg-primary/5 border border-primary/20">
+              <p className="text-xs text-foreground">
+                {strictlyDone
+                  ? "All linked items are done. Mark this goal complete?"
+                  : "Progress is high — mark complete when you're ready."}
+              </p>
+              <Button size="sm" onClick={handleMarkComplete} disabled={updateGoal.isPending}>
+                Mark complete
+              </Button>
+            </div>
+          )}
           {goal.goalType === "quantitative" && (
             <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
               <span>Current: <span className="text-foreground font-medium">{goal.currentValue ?? 0}</span></span>
