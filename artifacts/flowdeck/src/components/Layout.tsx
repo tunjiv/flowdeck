@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
   LayoutDashboard, Target, CheckSquare, Repeat, Tag, Timer, Settings,
-  Menu, LogOut, Moon, Sun, CalendarDays,
+  Menu, LogOut, Moon, Sun, CalendarDays, PanelLeftClose,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -98,27 +98,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       className="h-full w-[260px] flex-shrink-0 flex flex-col bg-card border-r border-border overflow-hidden"
       data-testid="sidebar-panel"
     >
-      {/* Header row: hamburger */}
-      <div className="flex items-center gap-1 px-3 py-3">
-        <button
-          onClick={() => isMobile ? setOpen(false) : toggleSidebar()}
-          className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Close menu"
-          data-testid="close-sidebar"
-        >
-          <Menu className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Brand */}
-      <div className="flex items-center gap-2.5 px-4 pt-1 pb-3">
+      {/* Brand + collapse */}
+      <div className="flex items-center gap-2.5 px-4 py-3">
         <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
           <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-primary-foreground">
             <rect x="3" y="4" width="6" height="16" rx="1.5" fill="currentColor" opacity="0.9"/>
             <rect x="13" y="9" width="6" height="11" rx="1.5" fill="currentColor" opacity="0.7"/>
           </svg>
         </div>
-        <span className="font-bold text-base tracking-tight text-foreground">FlowDeck</span>
+        <span className="font-bold text-base tracking-tight text-foreground flex-1">FlowDeck</span>
+        <button
+          onClick={() => isMobile ? setOpen(false) : toggleSidebar()}
+          className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+          aria-label="Collapse sidebar"
+          data-testid="close-sidebar"
+        >
+          <PanelLeftClose className="w-4 h-4" />
+        </button>
       </div>
 
       <Separator />
