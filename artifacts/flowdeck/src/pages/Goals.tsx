@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import {
   useListGoals, useCreateGoal, useUpdateGoal, useDeleteGoal,
   useListCategories,
@@ -9,7 +9,7 @@ import type { Goal, Category } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DateRange } from "react-day-picker";
 import {
-  Plus, Target, ChevronRight, Trash2, MoreHorizontal,
+  Plus, Target, Trash2, MoreHorizontal,
   CheckCircle2, Circle, Filter, X, Search, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -461,11 +461,6 @@ function GoalCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            <Link href={`/goals/${goal.id}`}>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </Link>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`goal-menu-${goal.id}`}>
