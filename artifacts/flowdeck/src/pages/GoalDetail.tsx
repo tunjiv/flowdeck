@@ -222,62 +222,63 @@ export default function GoalDetail({ backHref = "/goals" }: { backHref?: string 
         </div>
       )}
 
-      {/* Progress card */}
-      <Card className="border-border">
-        <CardContent className="p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="font-semibold text-foreground">Progress</h2>
-              {(tasks?.length ?? 0) > 0 || linkedHabits.length > 0 ? (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {tasks?.length ? `${tasks.filter(t => t.status === "completed").length}/${tasks.length} tasks` : ""}
-                  {tasks?.length && linkedHabits.length ? " · " : ""}
-                  {linkedHabits.length ? `${linkedHabits.length} linked habit${linkedHabits.length > 1 ? "s" : ""}` : ""}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          {showCompleteCta && (
-            <div className="flex items-center justify-between gap-3 mb-3 p-2.5 rounded-lg bg-primary/5 border border-primary/20">
-              <p className="text-xs text-foreground">
-                {strictlyDone
-                  ? "All linked items are done. Mark this goal complete?"
-                  : "Progress is high — mark complete when you're ready."}
-              </p>
-              <Button size="sm" onClick={handleMarkComplete} disabled={updateGoal.isPending}>
-                Mark complete
-              </Button>
-            </div>
-          )}
-          {goal.goalType === "quantitative" && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-              <span>Current: <span className="text-foreground font-medium">{goal.currentValue ?? 0}</span></span>
-              <span className="text-muted-foreground/60">→</span>
-              <span className="text-foreground font-medium">{goal.targetValue ?? "—"}</span>
-            </div>
-          )}
-          {editing ? (
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Label className="text-xs">Update current value</Label>
-                <Input
-                  type="number"
-                  value={currentValue}
-                  onChange={e => setCurrentValue(e.target.value)}
-                  placeholder={String(goal.currentValue ?? 0)}
-                  className="mt-1"
-                />
+      {backHref === "/goals" && (
+        <Card className="border-border">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="font-semibold text-foreground">Progress</h2>
+                {(tasks?.length ?? 0) > 0 || linkedHabits.length > 0 ? (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {tasks?.length ? `${tasks.filter(t => t.status === "completed").length}/${tasks.length} tasks` : ""}
+                    {tasks?.length && linkedHabits.length ? " · " : ""}
+                    {linkedHabits.length ? `${linkedHabits.length} linked habit${linkedHabits.length > 1 ? "s" : ""}` : ""}
+                  </p>
+                ) : null}
               </div>
-              <Button size="sm" onClick={handleUpdateProgress} disabled={updateGoal.isPending}>Save</Button>
-              <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
             </div>
-          ) : goal.goalType === "quantitative" && backHref === "/goals" ? (
-            <Button variant="outline" size="sm" onClick={() => { setEditing(true); setCurrentValue(String(goal.currentValue ?? 0)); }}>
-              Update progress
-            </Button>
-          ) : null}
-        </CardContent>
-      </Card>
+            {showCompleteCta && (
+              <div className="flex items-center justify-between gap-3 mb-3 p-2.5 rounded-lg bg-primary/5 border border-primary/20">
+                <p className="text-xs text-foreground">
+                  {strictlyDone
+                    ? "All linked items are done. Mark this goal complete?"
+                    : "Progress is high — mark complete when you're ready."}
+                </p>
+                <Button size="sm" onClick={handleMarkComplete} disabled={updateGoal.isPending}>
+                  Mark complete
+                </Button>
+              </div>
+            )}
+            {goal.goalType === "quantitative" && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                <span>Current: <span className="text-foreground font-medium">{goal.currentValue ?? 0}</span></span>
+                <span className="text-muted-foreground/60">→</span>
+                <span className="text-foreground font-medium">{goal.targetValue ?? "—"}</span>
+              </div>
+            )}
+            {editing ? (
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label className="text-xs">Update current value</Label>
+                  <Input
+                    type="number"
+                    value={currentValue}
+                    onChange={e => setCurrentValue(e.target.value)}
+                    placeholder={String(goal.currentValue ?? 0)}
+                    className="mt-1"
+                  />
+                </div>
+                <Button size="sm" onClick={handleUpdateProgress} disabled={updateGoal.isPending}>Save</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+              </div>
+            ) : goal.goalType === "quantitative" ? (
+              <Button variant="outline" size="sm" onClick={() => { setEditing(true); setCurrentValue(String(goal.currentValue ?? 0)); }}>
+                Update progress
+              </Button>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Details */}
       <Card className="border-border">
