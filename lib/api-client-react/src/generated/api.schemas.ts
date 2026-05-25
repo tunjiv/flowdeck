@@ -328,6 +328,8 @@ export interface Habit {
    * @maximum 6
    */
   graceDaysPerWeek?: number;
+  /** @nullable */
+  startDate?: string | null;
   isArchived?: boolean;
   createdAt: string;
 }
@@ -361,6 +363,7 @@ export interface HabitInput {
    * @maximum 6
    */
   graceDaysPerWeek?: number;
+  startDate?: string;
 }
 
 export type HabitUpdateFrequency =
@@ -392,6 +395,8 @@ export interface HabitUpdate {
    * @maximum 6
    */
   graceDaysPerWeek?: number;
+  /** @nullable */
+  startDate?: string | null;
   isArchived?: boolean;
 }
 

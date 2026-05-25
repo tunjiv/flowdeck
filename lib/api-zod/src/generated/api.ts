@@ -561,6 +561,7 @@ export const ListHabitsResponseItem = zod.object({
     .min(listHabitsResponseGraceDaysPerWeekMin)
     .max(listHabitsResponseGraceDaysPerWeekMax)
     .optional(),
+  startDate: zod.string().nullish(),
   isArchived: zod.boolean().optional(),
   createdAt: zod.string(),
 });
@@ -598,6 +599,7 @@ export const CreateHabitBody = zod.object({
     .min(createHabitBodyGraceDaysPerWeekMin)
     .max(createHabitBodyGraceDaysPerWeekMax)
     .optional(),
+  startDate: zod.string().optional(),
 });
 
 /**
@@ -639,6 +641,7 @@ export const GetHabitResponse = zod.object({
     .min(getHabitResponseGraceDaysPerWeekMin)
     .max(getHabitResponseGraceDaysPerWeekMax)
     .optional(),
+  startDate: zod.string().nullish(),
   isArchived: zod.boolean().optional(),
   createdAt: zod.string(),
 });
@@ -673,6 +676,7 @@ export const UpdateHabitBody = zod.object({
     .min(updateHabitBodyGraceDaysPerWeekMin)
     .max(updateHabitBodyGraceDaysPerWeekMax)
     .optional(),
+  startDate: zod.string().nullish(),
   isArchived: zod.boolean().optional(),
 });
 
@@ -708,6 +712,7 @@ export const UpdateHabitResponse = zod.object({
     .min(updateHabitResponseGraceDaysPerWeekMin)
     .max(updateHabitResponseGraceDaysPerWeekMax)
     .optional(),
+  startDate: zod.string().nullish(),
   isArchived: zod.boolean().optional(),
   createdAt: zod.string(),
 });

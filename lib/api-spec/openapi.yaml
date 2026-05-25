@@ -1419,6 +1419,8 @@ components:
           type: integer
           minimum: 0
           maximum: 6
+        startDate:
+          type: ["string", "null"]
         isArchived:
           type: boolean
         createdAt:
@@ -1453,6 +1455,8 @@ components:
           type: integer
           minimum: 0
           maximum: 6
+        startDate:
+          type: string
 
     HabitUpdate:
       type: object
@@ -1482,6 +1486,8 @@ components:
           type: integer
           minimum: 0
           maximum: 6
+        startDate:
+          type: ["string", "null"]
         isArchived:
           type: boolean
 

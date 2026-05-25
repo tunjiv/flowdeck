@@ -15,6 +15,7 @@ export const habitsTable = pgTable("habits", {
   motivationNote: text("motivation_note"),
   graceDaysPerWeek: integer("grace_days_per_week").notNull().default(0),
   recurrenceConfig: text("recurrence_config"),
+  startDate: text("start_date"),
   isArchived: boolean("is_archived").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

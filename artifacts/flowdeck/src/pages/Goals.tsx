@@ -154,6 +154,7 @@ function GoalForm({
     id: number; title: string; description?: string | null; goalType: string;
     priority: string; status: string; targetValue?: number | null;
     currentValue?: number | null; targetEndDate?: string | null;
+    startDate?: string | null;
     categoryId?: number | null;
   };
   categories: Category[] | undefined;
@@ -168,6 +169,7 @@ function GoalForm({
   const [priority, setPriority] = useState(initial?.priority ?? "medium");
   const [status, setStatus] = useState(initial?.status ?? "active");
   const [targetEndDate, setTargetEndDate] = useState(initial?.targetEndDate ?? "");
+  const [startDate, setStartDate] = useState(initial?.startDate ?? "");
   const [categoryId, setCategoryId] = useState(
     initial?.categoryId != null ? String(initial.categoryId) : "none"
   );
@@ -182,6 +184,7 @@ function GoalForm({
       goalType: (initial?.goalType ?? "milestone") as "quantitative" | "milestone" | "habit",
       priority: priority as "high" | "medium" | "low",
       status: status as "active" | "completed" | "paused" | "archived",
+      startDate: startDate || undefined,
       targetEndDate: targetEndDate || undefined,
       // Send explicit null when uncategorising so the server clears it,
       // rather than dropping the field and leaving the prior value in place.
@@ -264,9 +267,15 @@ function GoalForm({
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label htmlFor="end-date">Target date</Label>
-            <Input id="end-date" type="date" value={targetEndDate} onChange={e => setTargetEndDate(e.target.value)} className="mt-1" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="start-date">Start date</Label>
+              <Input id="start-date" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label htmlFor="end-date">Target date</Label>
+              <Input id="end-date" type="date" value={targetEndDate} onChange={e => setTargetEndDate(e.target.value)} className="mt-1" />
+            </div>
           </div>
         </div>
         <DialogFooter>

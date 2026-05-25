@@ -212,7 +212,7 @@ function RecurrencePicker({ value, config, onChange, onConfigChange }: {
 function HabitForm({ open, onClose, initial, presetGoalId }: {
   open: boolean;
   onClose: () => void;
-  initial?: { id: number; name: string; frequency: string; color?: string | null; motivationNote?: string | null; graceDaysPerWeek?: number | null; recurrenceConfig?: string | null; goalId?: number | null; };
+  initial?: { id: number; name: string; frequency: string; color?: string | null; motivationNote?: string | null; graceDaysPerWeek?: number | null; recurrenceConfig?: string | null; goalId?: number | null; startDate?: string | null; };
   presetGoalId?: number;
 }) {
   const qc = useQueryClient();
@@ -234,6 +234,7 @@ function HabitForm({ open, onClose, initial, presetGoalId }: {
   const [motivationNote, setMotivationNote] = useState(initial?.motivationNote ?? "");
   const [graceDays, setGraceDays] = useState(String(initial?.graceDaysPerWeek ?? "0"));
   const [goalId, setGoalId] = useState(String(initial?.goalId ?? presetGoalId ?? ""));
+  const [startDate, setStartDate] = useState(initial?.startDate ?? "");
 
   const handleSubmit = () => {
     if (!name.trim()) { toast.error("Name is required"); return; }
@@ -246,6 +247,7 @@ function HabitForm({ open, onClose, initial, presetGoalId }: {
       goalId: goalId ? Number(goalId) : undefined,
       motivationNote: motivationNote.trim() || undefined,
       graceDaysPerWeek: Number(graceDays),
+      startDate: startDate || undefined,
     };
     if (initial) {
       update.mutate({ id: initial.id, data: payload }, {
@@ -317,6 +319,11 @@ function HabitForm({ open, onClose, initial, presetGoalId }: {
                 <SelectItem value="3">3 skips / week</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="habit-start">Start date</Label>
+            <Input id="habit-start" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="mt-1" />
           </div>
 
           <div>

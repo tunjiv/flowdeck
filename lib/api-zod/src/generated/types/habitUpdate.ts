@@ -24,5 +24,7 @@ export interface HabitUpdate {
    * @maximum 6
    */
   graceDaysPerWeek?: number;
+  /** @nullable */
+  startDate?: string | null;
   isArchived?: boolean;
 }

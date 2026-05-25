@@ -24,4 +24,5 @@ export interface HabitInput {
    * @maximum 6
    */
   graceDaysPerWeek?: number;
+  startDate?: string;
 }
