@@ -340,19 +340,23 @@ export default function GoalDetail({ backHref = "/goals", showProgress = true }:
       )}
 
       {/* Linked habits */}
-      {linkedHabits.length > 0 && (
-        <Card className="border-border">
-          <CardHeader className="pb-2 pt-4 px-5">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Repeat className="w-4 h-4 text-primary" />
-              Habits
+      <Card className="border-border">
+        <CardHeader className="pb-2 pt-4 px-5">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Repeat className="w-4 h-4 text-primary" />
+            Habits
+            {linkedHabits.length > 0 && (
               <span className="text-xs text-muted-foreground font-normal">
                 {linkedHabits.filter(h => todayLogsByHabit[h.id]?.status === "done").length}/{linkedHabits.length} done today
               </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-4 space-y-3">
-            {linkedHabits.map(habit => {
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-4 space-y-3">
+          {linkedHabits.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">No habits linked to this goal yet.</p>
+          ) : (
+            linkedHabits.map(habit => {
               const weekDone = last7.filter(d => logsByKey[`${habit.id}:${d}`]?.status === "done").length;
               const pct = Math.round((weekDone / 7) * 100);
               const todayLog = todayLogsByHabit[habit.id];
@@ -418,10 +422,10 @@ export default function GoalDetail({ backHref = "/goals", showProgress = true }:
                   </div>
                 </div>
               );
-            })}
-          </CardContent>
-        </Card>
-      )}
+            })
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
