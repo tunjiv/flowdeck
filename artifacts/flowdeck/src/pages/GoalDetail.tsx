@@ -271,7 +271,7 @@ export default function GoalDetail({ backHref = "/goals" }: { backHref?: string 
               <Button size="sm" onClick={handleUpdateProgress} disabled={updateGoal.isPending}>Save</Button>
               <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
             </div>
-          ) : goal.goalType === "quantitative" ? (
+          ) : goal.goalType === "quantitative" && backHref === "/goals" ? (
             <Button variant="outline" size="sm" onClick={() => { setEditing(true); setCurrentValue(String(goal.currentValue ?? 0)); }}>
               Update progress
             </Button>
