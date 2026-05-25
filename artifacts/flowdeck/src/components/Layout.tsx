@@ -1,38 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
-  LayoutDashboard,
-  Target,
-  CheckSquare,
-  Repeat,
-  Tag,
-  Timer,
-  Settings,
-  Menu,
-  X,
-  LogOut,
-  ChevronRight,
-  Moon,
-  Sun,
-  PanelLeftClose,
-  PanelLeftOpen,
-  CalendarDays,
+  LayoutDashboard, Target, CheckSquare, Repeat, Tag, Timer, Settings,
+  Menu, X, LogOut, Moon, Sun, CalendarDays, Search,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -69,284 +46,171 @@ function useDarkMode() {
   return { dark, toggle };
 }
 
-function useSidebarCollapsed() {
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("sidebar-collapsed") === "true";
-    }
-    return false;
-  });
-  const toggle = () => setCollapsed(prev => {
-    const next = !prev;
-    localStorage.setItem("sidebar-collapsed", String(next));
-    return next;
-  });
-  return { collapsed, toggle };
-}
-
-interface SidebarProps {
-  collapsed: boolean;
-  toggleCollapsed: () => void;
-  dark: boolean;
-  toggleDark: () => void;
-  forMobile?: boolean;
-  onClose?: () => void;
-  location: string;
-  userImageUrl?: string;
-  userFirstName?: string;
-  userLastName?: string;
-  userEmail?: string;
-  onSignOut: () => void;
-}
-
-function DesktopSidebar({
-  collapsed, toggleCollapsed, dark, toggleDark,
-  location, userImageUrl, userFirstName, userLastName, userEmail, onSignOut,
-}: SidebarProps) {
-  const initials = userFirstName
-    ? `${userFirstName[0]}${userLastName?.[0] ?? ""}`.toUpperCase()
-    : "U";
-
-  return (
-    <TooltipProvider delayDuration={0}>
-      <div className="flex flex-col h-full">
-        {/* Logo + collapse toggle */}
-        <div className={`flex items-center gap-2.5 px-4 py-4 ${collapsed ? "justify-center" : ""}`}>
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-primary-foreground">
-              <rect x="3" y="4" width="6" height="16" rx="1.5" fill="currentColor" opacity="0.9"/>
-              <rect x="13" y="9" width="6" height="11" rx="1.5" fill="currentColor" opacity="0.7"/>
-            </svg>
-          </div>
-          {!collapsed && (
-            <span className="font-bold text-lg tracking-tight text-foreground flex-1">FlowDeck</span>
-          )}
-          <button
-            onClick={toggleCollapsed}
-            className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
-          </button>
-        </div>
-
-        <Separator className="mx-3 w-auto" />
-
-        {/* Navigation */}
-        <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const active = location === href || location.startsWith(href + "/");
-            const inner = (
-              <Link key={href} href={href} data-testid={`nav-${label.toLowerCase()}`}>
-                <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                  collapsed ? "justify-center px-2" : ""
-                } ${
-                  active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}>
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  {!collapsed && (
-                    <>
-                      <span>{label}</span>
-                      {active && <ChevronRight className="w-3 h-3 ml-auto opacity-50" />}
-                    </>
-                  )}
-                </div>
-              </Link>
-            );
-
-            return collapsed ? (
-              <Tooltip key={href}>
-                <TooltipTrigger asChild>{inner}</TooltipTrigger>
-                <TooltipContent side="right">{label}</TooltipContent>
-              </Tooltip>
-            ) : inner;
-          })}
-        </nav>
-
-        <Separator className="mx-3 w-auto" />
-
-        {/* User footer */}
-        <div className="p-2">
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-muted transition-colors">
-                      <Avatar className="w-7 h-7">
-                        <AvatarImage src={userImageUrl} />
-                        <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
-                      </Avatar>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" side="right" className="w-48">
-                    <DropdownMenuItem onClick={toggleDark} data-testid="toggle-theme">
-                      {dark ? <Sun className="w-4 h-4 mr-2" /> : <Moon className="w-4 h-4 mr-2" />}
-                      {dark ? "Light mode" : "Dark mode"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={onSignOut} data-testid="sign-out" className="text-destructive focus:text-destructive">
-                      <LogOut className="w-4 h-4 mr-2" />Sign out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TooltipTrigger>
-              <TooltipContent side="right">{userFirstName ?? "Account"}</TooltipContent>
-            </Tooltip>
-          ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button data-testid="user-menu-trigger" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-left">
-                  <Avatar className="w-7 h-7">
-                    <AvatarImage src={userImageUrl} />
-                    <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{userFirstName ?? "User"}</p>
-                    <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={toggleDark} data-testid="toggle-theme">
-                  {dark ? <Sun className="w-4 h-4 mr-2" /> : <Moon className="w-4 h-4 mr-2" />}
-                  {dark ? "Light mode" : "Dark mode"}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onSignOut} data-testid="sign-out" className="text-destructive focus:text-destructive">
-                  <LogOut className="w-4 h-4 mr-2" />Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      </div>
-    </TooltipProvider>
-  );
-}
-
-function MobileSidebar({ dark, toggleDark, location, userImageUrl, userFirstName, userLastName, userEmail, onSignOut, onClose }: SidebarProps) {
-  const initials = userFirstName
-    ? `${userFirstName[0]}${userLastName?.[0] ?? ""}`.toUpperCase()
-    : "U";
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2.5 px-4 py-4">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-          <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-primary-foreground">
-            <rect x="3" y="4" width="6" height="16" rx="1.5" fill="currentColor" opacity="0.9"/>
-            <rect x="13" y="9" width="6" height="11" rx="1.5" fill="currentColor" opacity="0.7"/>
-          </svg>
-        </div>
-        <span className="font-bold text-lg tracking-tight text-foreground flex-1">FlowDeck</span>
-        <button className="p-1 rounded-md hover:bg-muted" onClick={onClose}>
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      <Separator className="mx-3 w-auto" />
-
-      <nav className="flex-1 px-2 py-3 space-y-0.5">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = location === href || location.startsWith(href + "/");
-          return (
-            <Link key={href} href={href} onClick={onClose} data-testid={`nav-${label.toLowerCase()}`}>
-              <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}>
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                <span>{label}</span>
-                {active && <ChevronRight className="w-3 h-3 ml-auto opacity-50" />}
-              </div>
-            </Link>
-          );
-        })}
-      </nav>
-
-      <Separator className="mx-3 w-auto" />
-
-      <div className="p-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button data-testid="user-menu-trigger" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-left">
-              <Avatar className="w-7 h-7">
-                <AvatarImage src={userImageUrl} />
-                <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{userFirstName ?? "User"}</p>
-                <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
-              </div>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={toggleDark} data-testid="toggle-theme">
-              {dark ? <Sun className="w-4 h-4 mr-2" /> : <Moon className="w-4 h-4 mr-2" />}
-              {dark ? "Light mode" : "Dark mode"}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onSignOut} data-testid="sign-out" className="text-destructive focus:text-destructive">
-              <LogOut className="w-4 h-4 mr-2" />Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
-  );
-}
-
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const { dark, toggle: toggleDark } = useDarkMode();
-  const { collapsed, toggle: toggleCollapsed } = useSidebarCollapsed();
 
-  const sidebarProps: SidebarProps = {
-    collapsed,
-    toggleCollapsed,
-    dark,
-    toggleDark,
-    location,
-    userImageUrl: user?.imageUrl,
-    userFirstName: user?.firstName ?? undefined,
-    userLastName: user?.lastName ?? undefined,
-    userEmail: user?.emailAddresses?.[0]?.emailAddress,
-    onSignOut: () => signOut({ redirectUrl: "/" }),
-  };
+  // Close on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Lock body scroll while overlay open
+  useEffect(() => {
+    if (open) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  const initials = user?.firstName
+    ? `${user.firstName[0]}${user.lastName?.[0] ?? ""}`.toUpperCase()
+    : "U";
+
+  const currentPage = navItems.find(n => location === n.href || location.startsWith(n.href + "/"))?.label ?? "FlowDeck";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* Desktop Sidebar */}
-      <aside className={`hidden md:flex flex-col border-r border-border bg-card flex-shrink-0 transition-all duration-200 ${collapsed ? "w-[60px]" : "w-56"}`}>
-        <DesktopSidebar {...sidebarProps} />
-      </aside>
-
-      {/* Mobile sidebar overlay */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
-          <aside className="relative w-56 flex flex-col bg-card border-r border-border z-10">
-            <MobileSidebar {...sidebarProps} forMobile onClose={() => setMobileOpen(false)} />
-          </aside>
-        </div>
-      )}
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile topbar */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-card">
-          <button data-testid="mobile-menu" onClick={() => setMobileOpen(true)} className="p-1.5 rounded-md hover:bg-muted">
-            <Menu className="w-5 h-5" />
+      {/* Main content (always full width) */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Top bar */}
+        <header className="flex items-center gap-3 px-4 h-12 border-b border-border bg-card/80 backdrop-blur-sm flex-shrink-0">
+          <button
+            onClick={() => setOpen(true)}
+            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            data-testid="open-sidebar"
+            aria-label="Open menu"
+          >
+            <Menu className="w-4 h-4" />
           </button>
-          <span className="font-bold text-base">FlowDeck</span>
-        </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-semibold text-foreground">FlowDeck</span>
+            <span className="text-muted-foreground">/</span>
+            <span className="text-muted-foreground">{currentPage}</span>
+          </div>
+        </header>
 
         <main className="flex-1 overflow-y-auto">
           {children}
         </main>
       </div>
+
+      {/* Sidebar overlay (Claude-style) */}
+      {open && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-[2px] animate-in fade-in duration-150"
+            onClick={() => setOpen(false)}
+          />
+
+          {/* Floating panel */}
+          <aside
+            className="relative w-[280px] m-2 ml-2 sm:ml-3 rounded-2xl bg-card border border-border shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-left-2 fade-in duration-200"
+            data-testid="sidebar-panel"
+          >
+            {/* Header row: hamburger + search */}
+            <div className="flex items-center gap-1 px-3 py-3">
+              <button
+                onClick={() => setOpen(false)}
+                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Close menu"
+                data-testid="close-sidebar"
+              >
+                <Menu className="w-4 h-4" />
+              </button>
+              <div className="flex-1 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-muted/60 text-muted-foreground text-xs">
+                <Search className="w-3.5 h-3.5" />
+                <span>Search</span>
+              </div>
+            </div>
+
+            {/* Brand */}
+            <div className="flex items-center gap-2.5 px-4 pt-1 pb-3">
+              <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-primary-foreground">
+                  <rect x="3" y="4" width="6" height="16" rx="1.5" fill="currentColor" opacity="0.9"/>
+                  <rect x="13" y="9" width="6" height="11" rx="1.5" fill="currentColor" opacity="0.7"/>
+                </svg>
+              </div>
+              <span className="font-bold text-base tracking-tight text-foreground">FlowDeck</span>
+            </div>
+
+            <Separator />
+
+            {/* Navigation */}
+            <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
+              {navItems.map(({ href, label, icon: Icon }) => {
+                const active = location === href || location.startsWith(href + "/");
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setOpen(false)}
+                    data-testid={`nav-${label.toLowerCase()}`}
+                  >
+                    <div className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all cursor-pointer ${
+                      active
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-foreground/80 hover:bg-muted hover:text-foreground"
+                    }`}>
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      <span>{label}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <Separator />
+
+            {/* User footer */}
+            <div className="p-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    data-testid="user-menu-trigger"
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted transition-colors text-left"
+                  >
+                    <Avatar className="w-7 h-7">
+                      <AvatarImage src={user?.imageUrl} />
+                      <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {user?.firstName ?? "User"} {user?.lastName ?? ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {user?.emailAddresses?.[0]?.emailAddress}
+                      </p>
+                    </div>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onClick={toggleDark} data-testid="toggle-theme">
+                    {dark ? <Sun className="w-4 h-4 mr-2" /> : <Moon className="w-4 h-4 mr-2" />}
+                    {dark ? "Light mode" : "Dark mode"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => signOut({ redirectUrl: "/" })}
+                    data-testid="sign-out"
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
