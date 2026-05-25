@@ -289,7 +289,6 @@ export default function DashboardScreen() {
                 <View style={s.goalLeft}>
                   <Text style={[s.goalName, { color: colors.foreground }]} numberOfLines={1}>{goal.title}</Text>
                 </View>
-                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
               </Pressable>
             ))}
           </View>
