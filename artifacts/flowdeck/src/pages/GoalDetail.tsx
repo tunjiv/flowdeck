@@ -286,10 +286,6 @@ export default function GoalDetail() {
         <CardContent className="px-5 pb-4">
           <dl className="grid grid-cols-2 gap-y-3 text-sm">
             <div>
-              <dt className="text-muted-foreground">Type</dt>
-              <dd className="font-medium text-foreground capitalize mt-0.5">{goal.goalType}</dd>
-            </div>
-            <div>
               <dt className="text-muted-foreground">Priority</dt>
               <dd className="font-medium text-foreground capitalize mt-0.5">{goal.priority}</dd>
             </div>
