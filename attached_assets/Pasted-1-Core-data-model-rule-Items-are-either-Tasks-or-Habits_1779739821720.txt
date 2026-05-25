@@ -1,0 +1,21 @@
+1. Core data model rule
+Items are either Tasks or Habits — never both. The only signal is recurrence: an item with no repeat schedule is a Task; an item with any repeat schedule is a Habit. Tasks have no recurrence field anywhere in the UI. If a user adds recurrence while creating an item, it automatically routes to the Habits module. If recurrence is later added to an existing Task, show a confirmation ("Adding a schedule turns this into a habit — we'll move it to your Habits") and migrate it.
+2. Tasks module
+Keep the existing UI. Remove any recurrence option from the task creation and edit forms entirely. Tasks are one-off, complete and disappear. No changes to completion behavior.
+3. Habits module — full rebuild
+Habits are recurring items tracked over time. Build the following:
+Creation form: name, category, linked goal (optional), and a Repeat field. Tapping Repeat opens the recurrence picker (spec below).
+Recurrence picker (Microsoft To Do style): a compact list showing Daily, Weekdays, Weekly, Monthly, Yearly, and Custom. Tapping any preset saves immediately with no extra steps. Tapping Custom reveals two inline controls — an interval number input and a unit dropdown (days / weeks / months / years) — plus a day-of-week strip (Su Mo Tu We Th Fr Sa, circular toggles) that only appears when "weeks" is selected. A plain-English summary line updates live beneath the controls (e.g. "Every 2 weeks on Mon, Thu").
+Habit list view: each row shows the habit name, its recurrence label (e.g. "Daily", "Every Mon, Thu"), and a 7-dot streak indicator (teal = done, red = missed, amber = skipped, gray = future). Expanding a row reveals: three acknowledgment chips for today — Done, Skipped, Missed — and a 7-day dot timeline below them.
+Skip-to-present: if a habit has unacknowledged past occurrences, show an amber "N missed" badge on the row. Expanding reveals a day-grid of all missed dates with Select all / Clear / Weekdays only batch controls, plus a "Mark selected as done & skip rest" confirm button.
+4. Goals — link to both Tasks and Habits
+On the goal detail page, show two separate sections: Milestones (linked tasks, finite, tick-off list) and Daily drivers (linked habits, shown with streak health). A goal whose linked habits are all failing should surface a warning.
+5. Dashboard — updated
+Add a fifth summary card: Habits X/Y done today (teal accent, links to Habits module). Replace one of the three dashboard columns with a "Habits today" column showing each habit with its name, 7-dot streak row, and the three-state acknowledgment buttons inline. Add a "Habit trends" third column with a per-habit tab selector, a small 7-bar completion chart, and three stat chips: this week %, current streak, best streak. A "Full trends →" link navigates to the Habits module.
+6. Habits module — trends view
+Four summary stat cards at the top (active habits, done today, best streak, this month %). Below: a horizontal completion bar per habit (green ≥70%, amber 40–69%, red <40%). Below that: a 28-day heatmap calendar for the selected habit (teal = done, amber = skipped, red = missed, gray = empty) with a legend.
+7. Calendar — month view only
+Add a Calendar item to the sidebar. Month view only. Each day cell shows dots or small pills for tasks due that day and habits scheduled that day (teal for habits, gray for tasks). Clicking a day opens a side panel listing that day's items. Clicking any item opens its detail/edit view. No week or day view needed.
+8. Acknowledgment states
+Throughout the app, habits use three states — Done (teal), Skipped (amber), Missed (red) — never a simple checkbox. Skipped is streak-neutral; Missed counts against the streak. This distinction must be consistent across the dashboard strip, the habit list, and the trends heatmap.
+Match the existing FlowDeck visual style exactly: white cards, teal #0d9488 as the primary action color, normal priority badge in green, thin borders, clean sans-serif typography. Do not introduce new color schemes.
