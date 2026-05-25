@@ -104,9 +104,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar overlay (Claude-style) */}
       {open && (
         <div className="fixed inset-0 z-50 flex">
-          {/* Backdrop */}
+          {/* Invisible click-catcher (no dimming) */}
           <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-[2px] animate-in fade-in duration-150"
+            className="absolute inset-0"
             onClick={() => setOpen(false)}
           />
 
