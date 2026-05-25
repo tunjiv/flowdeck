@@ -7,7 +7,7 @@ import {
   useCompleteTask, useUpdateGoal, useGetWeeklyReview, useGetProductivityScore,
   useLogHabit, useUpdateHabitLog, useDeleteHabitLog,
   getListTasksQueryKey, getListGoalsQueryKey, getGetTodaysMoodQueryKey,
-  getListHabitLogsQueryKey, getGetDashboardSummaryQueryKey,
+  getListHabitLogsQueryKey, getGetDashboardSummaryQueryKey, getGetProductivityScoreQueryKey,
 } from "@workspace/api-client-react";
 import type { Task, Goal } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -218,6 +218,8 @@ function TodoPanel({ tasks, range }: { tasks: Task[] | undefined; range: DateRan
     completeTask.mutate({ id }, {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListTasksQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetProductivityScoreQueryKey() });
         toast.success("Task completed");
       },
       onError: () => {

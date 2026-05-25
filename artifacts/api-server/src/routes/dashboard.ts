@@ -23,8 +23,11 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   const habitsToday = allHabits.length;
   const habitsCompleted = habitLogs.length;
 
-  // Productivity score: weighted mix of tasks + habits
-  const taskRate = todayTasks.length > 0 ? completedToday.length / (todayTasks.length + completedToday.length) : 0;
+  // Productivity score: completed-today / (pending due-or-overdue + completed-today)
+  // Completed overdue still counts in the numerator but won't pin the score to 100%
+  // unless there's nothing left pending.
+  const taskDenominator = todayTasks.length + completedToday.length;
+  const taskRate = taskDenominator > 0 ? completedToday.length / taskDenominator : 0;
   const habitRate = habitsToday > 0 ? habitsCompleted / habitsToday : 0;
   const productivityScore = Math.round((taskRate * 0.6 + habitRate * 0.4) * 100);
 
@@ -101,9 +104,10 @@ router.get("/dashboard/productivity-score", requireAuth, async (req, res): Promi
   const habitsToday = habits.length;
   const habitsCompleted = habitLogs.length;
 
-  const tasksCompletionRate = todayTasks.length > 0
-    ? completedToday.length / (todayTasks.length + completedToday.length)
-    : completedToday.length > 0 ? 1 : 0;
+  // Denominator = anything that needed attention today (pending due-or-overdue + completed today).
+  // Don't fall back to 100% when only overdue work was cleared but other items remain.
+  const taskDenominator = todayTasks.length + completedToday.length;
+  const tasksCompletionRate = taskDenominator > 0 ? completedToday.length / taskDenominator : 0;
   const habitCompletionRate = habitsToday > 0 ? habitsCompleted / habitsToday : 0;
   const score = Math.round((tasksCompletionRate * 0.6 + habitCompletionRate * 0.4) * 100);
 
