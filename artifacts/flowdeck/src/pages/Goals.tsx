@@ -291,7 +291,7 @@ function GoalForm({
 
 // ── GoalCard ──────────────────────────────────────────────────────────────────
 function GoalCard({
-  goal, overdue, category, onToggleComplete, onEdit, onDelete, isPending,
+  goal, overdue, category, onToggleComplete, onEdit, onDelete, onOpenInfo, isPending,
 }: {
   goal: Goal;
   overdue: boolean;
@@ -299,6 +299,7 @@ function GoalCard({
   onToggleComplete: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onOpenInfo: () => void;
   isPending: boolean;
 }) {
   const isCompleted = goal.status === "completed";
@@ -352,14 +353,15 @@ function GoalCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            <Link
-              href={`/goals/${goal.id}`}
+            <button
+              type="button"
+              onClick={onOpenInfo}
               className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title="View details"
               data-testid={`goal-open-${goal.id}`}
             >
               <ChevronRight className="w-4 h-4" />
-            </Link>
+            </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`goal-menu-${goal.id}`}>
@@ -397,6 +399,8 @@ export default function Goals() {
 
   // Post-create habit prompt
   const [habitPromptGoal, setHabitPromptGoal] = useState<Goal | null>(null);
+  // Inline goal info dialog (opened from chevron on goal cards)
+  const [infoGoal, setInfoGoal] = useState<Goal | null>(null);
 
   useGoalMilestoneTracker(goals);
 
@@ -523,6 +527,7 @@ export default function Goals() {
     onToggleComplete: () => handleToggleComplete(goal),
     onEdit: () => { setEditGoal(goal); setFormOpen(true); },
     onDelete: () => handleDelete(goal.id),
+    onOpenInfo: () => setInfoGoal(goal),
     isPending: updateGoal.isPending,
   });
 
@@ -723,6 +728,55 @@ export default function Goals() {
         categories={categories}
         onCreated={(g) => setHabitPromptGoal(g)}
       />
+
+      <Dialog open={!!infoGoal} onOpenChange={(o) => { if (!o) setInfoGoal(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 pr-6">
+              <Target className="w-4 h-4 text-primary flex-shrink-0" />
+              <span className="truncate">{infoGoal?.title}</span>
+            </DialogTitle>
+            <DialogDescription className="sr-only">Goal details</DialogDescription>
+          </DialogHeader>
+          {infoGoal && (
+            <div className="space-y-3 text-sm">
+              {infoGoal.description && (
+                <p className="text-muted-foreground whitespace-pre-wrap">{infoGoal.description}</p>
+              )}
+              <dl className="grid grid-cols-2 gap-y-2.5">
+                <div>
+                  <dt className="text-xs text-muted-foreground">Priority</dt>
+                  <dd className="font-medium text-foreground capitalize mt-0.5">{infoGoal.priority}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Status</dt>
+                  <dd className="font-medium text-foreground capitalize mt-0.5">{infoGoal.status}</dd>
+                </div>
+                {infoGoal.startDate && (
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Start date</dt>
+                    <dd className="font-medium text-foreground mt-0.5">{infoGoal.startDate}</dd>
+                  </div>
+                )}
+                {infoGoal.targetEndDate && (
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Target date</dt>
+                    <dd className="font-medium text-foreground mt-0.5">{infoGoal.targetEndDate}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setInfoGoal(null)}>Back to goals</Button>
+            {infoGoal && (
+              <Button asChild>
+                <Link href={`/goals/${infoGoal.id}`}>Open goal</Link>
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Post-create: prompt to make a linked habit */}
       <Dialog open={!!habitPromptGoal} onOpenChange={(o) => { if (!o) setHabitPromptGoal(null); }}>
