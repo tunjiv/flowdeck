@@ -18,7 +18,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, Circle, Repeat, AlertTriangle, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -239,7 +238,6 @@ export default function GoalDetail() {
             </div>
             <span className="text-2xl font-bold text-primary">{pct}%</span>
           </div>
-          <Progress value={pct} className="h-3 mb-3" />
           {showCompleteCta && (
             <div className="flex items-center justify-between gap-3 mb-3 p-2.5 rounded-lg bg-primary/5 border border-primary/20">
               <p className="text-xs text-foreground">
