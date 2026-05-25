@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
   LayoutDashboard, Target, CheckSquare, Repeat, Tag, Timer, Settings,
-  Menu, LogOut, Moon, Sun, CalendarDays, Search,
+  Menu, LogOut, Moon, Sun, CalendarDays,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -98,7 +98,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       className="h-full w-[260px] flex-shrink-0 flex flex-col bg-card border-r border-border overflow-hidden"
       data-testid="sidebar-panel"
     >
-      {/* Header row: hamburger + search */}
+      {/* Header row: hamburger */}
       <div className="flex items-center gap-1 px-3 py-3">
         <button
           onClick={() => isMobile ? setOpen(false) : toggleSidebar()}
@@ -108,10 +108,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         >
           <Menu className="w-4 h-4" />
         </button>
-        <div className="flex-1 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-muted/60 text-muted-foreground text-xs">
-          <Search className="w-3.5 h-3.5" />
-          <span>Search</span>
-        </div>
       </div>
 
       {/* Brand */}
