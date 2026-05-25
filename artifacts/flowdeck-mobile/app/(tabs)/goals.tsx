@@ -101,12 +101,6 @@ export default function GoalsScreen() {
     ]);
   };
 
-  const getProgress = (goal: { goalType: string; currentValue?: number | null; targetValue?: number | null }) => {
-    if (goal.goalType !== "quantitative") return null;
-    if (!goal.targetValue || goal.targetValue === 0) return null;
-    return Math.min(1, (goal.currentValue ?? 0) / goal.targetValue);
-  };
-
   const s = styles(colors);
   const topPad = isWeb ? 67 : insets.top;
 
@@ -154,7 +148,6 @@ export default function GoalsScreen() {
           contentContainerStyle={[s.list, { paddingBottom: isWeb ? 34 : insets.bottom + 100 }]}
           scrollEnabled={!!(goals && goals.length > 0)}
           renderItem={({ item }) => {
-            const progress = getProgress(item);
             return (
               <Pressable
                 style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -180,16 +173,6 @@ export default function GoalsScreen() {
                 {item.description ? (
                   <Text style={[s.cardDesc, { color: colors.mutedForeground }]} numberOfLines={2}>{item.description}</Text>
                 ) : null}
-                {progress !== null && (
-                  <View style={s.progressContainer}>
-                    <View style={[s.progressTrack, { backgroundColor: colors.muted }]}>
-                      <View style={[s.progressFill, { backgroundColor: colors.primary, width: `${Math.round(progress * 100)}%` }]} />
-                    </View>
-                    <Text style={[s.progressLabel, { color: colors.mutedForeground }]}>
-                      {item.currentValue ?? 0} / {item.targetValue}
-                    </Text>
-                  </View>
-                )}
               </Pressable>
             );
           }}

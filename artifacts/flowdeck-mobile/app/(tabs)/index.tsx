@@ -280,32 +280,18 @@ export default function DashboardScreen() {
               <Feather name="target" size={16} color={colors.primary} />
               <Text style={[s.sectionTitle, { color: colors.foreground }]}>Active Goals</Text>
             </View>
-            {goals.slice(0, 4).map((goal) => {
-              const progress =
-                goal.goalType === "quantitative" && goal.targetValue && goal.targetValue > 0
-                  ? Math.min(1, (goal.currentValue ?? 0) / goal.targetValue)
-                  : null;
-              return (
-                <Pressable
-                  key={goal.id}
-                  style={[s.goalRow, { borderTopColor: colors.border }]}
-                  onPress={() => router.push(`/goal/${goal.id}`)}
-                >
-                  <View style={s.goalLeft}>
-                    <Text style={[s.goalName, { color: colors.foreground }]} numberOfLines={1}>{goal.title}</Text>
-                    {progress !== null && (
-                      <View style={[s.goalBar, { backgroundColor: colors.muted }]}>
-                        <View style={[s.goalBarFill, { backgroundColor: colors.primary, width: `${Math.round(progress * 100)}%` }]} />
-                      </View>
-                    )}
-                  </View>
-                  {progress !== null && (
-                    <Text style={[s.goalPct, { color: colors.primary }]}>{Math.round(progress * 100)}%</Text>
-                  )}
-                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-                </Pressable>
-              );
-            })}
+            {goals.slice(0, 4).map((goal) => (
+              <Pressable
+                key={goal.id}
+                style={[s.goalRow, { borderTopColor: colors.border }]}
+                onPress={() => router.push(`/goal/${goal.id}`)}
+              >
+                <View style={s.goalLeft}>
+                  <Text style={[s.goalName, { color: colors.foreground }]} numberOfLines={1}>{goal.title}</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            ))}
           </View>
         )}
       </ScrollView>

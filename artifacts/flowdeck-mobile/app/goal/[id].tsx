@@ -53,11 +53,6 @@ export default function GoalDetailScreen() {
     );
   }
 
-  const progressPct =
-    goal.goalType === "quantitative" && goal.targetValue && goal.targetValue > 0
-      ? Math.min(1, (goal.currentValue ?? 0) / goal.targetValue)
-      : null;
-
   const doneTasks = tasks?.filter((t) => t.status === "completed").length ?? 0;
   const totalTasks = tasks?.length ?? 0;
 
@@ -90,20 +85,6 @@ export default function GoalDetailScreen() {
               {goal.description ? (
                 <Text style={[s.desc, { color: colors.mutedForeground }]}>{goal.description}</Text>
               ) : null}
-              {progressPct !== null && (
-                <View style={s.progressSection}>
-                  <View style={s.progressLabelRow}>
-                    <Text style={[s.progressLabel, { color: colors.mutedForeground }]}>Progress</Text>
-                    <Text style={[s.progressValue, { color: colors.primary }]}>
-                      {goal.currentValue ?? 0} / {goal.targetValue}
-                    </Text>
-                  </View>
-                  <View style={[s.progressTrack, { backgroundColor: colors.muted }]}>
-                    <View style={[s.progressFill, { backgroundColor: colors.primary, width: `${Math.round(progressPct * 100)}%` }]} />
-                  </View>
-                  <Text style={[s.progressPct, { color: colors.primary }]}>{Math.round(progressPct * 100)}%</Text>
-                </View>
-              )}
               {totalTasks > 0 && (
                 <View style={s.statsRow}>
                   <View style={s.statItem}>
