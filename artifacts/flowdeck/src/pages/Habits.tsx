@@ -549,8 +549,6 @@ export default function Habits() {
     (allGoals ?? []).forEach(g => m.set(g.id, g));
     return m;
   }, [allGoals]);
-  const [goalInfoId, setGoalInfoId] = useState<number | null>(null);
-  const goalInfo = goalInfoId != null ? goalsById.get(goalInfoId) : null;
   const { data: allLogs } = useListHabitLogs();
   const logHabit = useLogHabit();
   const updateLog = useUpdateHabitLog();
@@ -749,16 +747,16 @@ export default function Habits() {
                             </span>
                           )}
                           {linkedGoal && (
-                            <button
-                              type="button"
-                              onClick={e => { e.stopPropagation(); setGoalInfoId(linkedGoal.id); }}
+                            <Link
+                              href={`/goals/${linkedGoal.id}`}
+                              onClick={e => e.stopPropagation()}
                               className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1 max-w-[12rem] truncate"
                               title={linkedGoal.title}
                               data-testid={`habit-goal-${habit.id}`}
                             >
                               <Target className="w-3 h-3 flex-shrink-0" />
                               <span className="truncate">{linkedGoal.title}</span>
-                            </button>
+                            </Link>
                           )}
                         </div>
                         <div className="mt-1.5">
@@ -1013,53 +1011,6 @@ export default function Habits() {
         presetGoalId={editHabit ? undefined : presetGoalId}
       />
 
-      <Dialog open={goalInfo != null} onOpenChange={o => { if (!o) setGoalInfoId(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 pr-6">
-              <Target className="w-4 h-4 text-primary flex-shrink-0" />
-              <span className="truncate">{goalInfo?.title}</span>
-            </DialogTitle>
-          </DialogHeader>
-          {goalInfo && (
-            <div className="space-y-3 text-sm">
-              {goalInfo.description && (
-                <p className="text-muted-foreground whitespace-pre-wrap">{goalInfo.description}</p>
-              )}
-              <dl className="grid grid-cols-2 gap-y-2.5">
-                <div>
-                  <dt className="text-xs text-muted-foreground">Priority</dt>
-                  <dd className="font-medium text-foreground capitalize mt-0.5">{goalInfo.priority}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Status</dt>
-                  <dd className="font-medium text-foreground capitalize mt-0.5">{goalInfo.status}</dd>
-                </div>
-                {goalInfo.startDate && (
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Start date</dt>
-                    <dd className="font-medium text-foreground mt-0.5">{goalInfo.startDate}</dd>
-                  </div>
-                )}
-                {goalInfo.targetEndDate && (
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Target date</dt>
-                    <dd className="font-medium text-foreground mt-0.5">{goalInfo.targetEndDate}</dd>
-                  </div>
-                )}
-              </dl>
-            </div>
-          )}
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setGoalInfoId(null)}>Back to habits</Button>
-            {goalInfo && (
-              <Button asChild>
-                <Link href={`/goals/${goalInfo.id}`}>Open goal</Link>
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
