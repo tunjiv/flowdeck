@@ -19,7 +19,11 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, addDays, nextMonday } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +32,32 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useLocalStorage } from "@/lib/useLocalStorage";
+
+// ── Date filter button (calendar popover) ─────────────────────────────────────
+function DateFilterButton({ value, onChange, placeholder }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  const selected = value ? new Date(value + "T00:00:00") : undefined;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 text-xs font-normal w-[150px] justify-start">
+          <CalendarDays className="w-3 h-3 mr-1.5" />
+          {selected ? format(selected, "MMM d, yyyy") : <span className="text-muted-foreground">{placeholder}</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          onSelect={d => onChange(d ? format(d, "yyyy-MM-dd") : "")}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TASK_PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
@@ -436,6 +466,7 @@ export default function Tasks() {
   const { data: taskTagAssociations = [] } = useListTaskTagAssociations();
   const deleteTask = useDeleteTask();
   const completeTask = useCompleteTask();
+  const update = useUpdateTask();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editTask, setEditTask] = useState<any>(null);
@@ -569,6 +600,16 @@ export default function Tasks() {
     });
   };
 
+  const reschedule = (id: number, dueDate: string) => {
+    update.mutate({ id, data: { dueDate } }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListTasksQueryKey() });
+        toast.success(`Due ${dueDate === today ? "today" : dueDate}`);
+      },
+      onError: () => toast.error("Failed to reschedule"),
+    });
+  };
+
   const toggleTag = (tagId: number) => {
     const current = filters.tagIds;
     const next = current.includes(tagId) ? current.filter(id => id !== tagId) : [...current, tagId];
@@ -618,8 +659,45 @@ export default function Tasks() {
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onClick={() => { setEditTask(task); setFormOpen(true); }}>Edit</DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <CalendarDays className="w-3.5 h-3.5 mr-2" /> Reschedule
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-56">
+                  <DropdownMenuItem onClick={() => reschedule(task.id, format(new Date(), "yyyy-MM-dd"))}>
+                    <span className="flex-1">Today</span>
+                    <span className="text-xs text-muted-foreground">{format(new Date(), "EEE")}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => reschedule(task.id, format(addDays(new Date(), 1), "yyyy-MM-dd"))}>
+                    <span className="flex-1">Tomorrow</span>
+                    <span className="text-xs text-muted-foreground">{format(addDays(new Date(), 1), "EEE")}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => reschedule(task.id, format(nextMonday(new Date()), "yyyy-MM-dd"))}>
+                    <span className="flex-1">Next week</span>
+                    <span className="text-xs text-muted-foreground">{format(nextMonday(new Date()), "EEE, MMM d")}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <div className="p-1">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground flex items-center">
+                          <CalendarDays className="w-3.5 h-3.5 mr-2" /> Pick a date…
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={task.dueDate ? new Date(task.dueDate + "T00:00:00") : undefined}
+                          onSelect={d => { if (d) reschedule(task.id, format(d, "yyyy-MM-dd")); }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDelete(task.id)}>
                 <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
               </DropdownMenuItem>
@@ -794,16 +872,25 @@ export default function Tasks() {
             </Select>
 
             {filters.dateMode === "exact" && (
-              <Input type="date" value={filters.dateExact} onChange={e => setF({ dateExact: e.target.value })}
-                className="h-8 text-xs w-[150px]" />
+              <DateFilterButton
+                value={filters.dateExact}
+                onChange={v => setF({ dateExact: v })}
+                placeholder="Pick a date"
+              />
             )}
             {filters.dateMode === "range" && (
               <>
-                <Input type="date" value={filters.dateStart} onChange={e => setF({ dateStart: e.target.value })}
-                  className="h-8 text-xs w-[140px]" />
+                <DateFilterButton
+                  value={filters.dateStart}
+                  onChange={v => setF({ dateStart: v })}
+                  placeholder="Start"
+                />
                 <span className="text-xs text-muted-foreground">—</span>
-                <Input type="date" value={filters.dateEnd} onChange={e => setF({ dateEnd: e.target.value })}
-                  className="h-8 text-xs w-[140px]" />
+                <DateFilterButton
+                  value={filters.dateEnd}
+                  onChange={v => setF({ dateEnd: v })}
+                  placeholder="End"
+                />
               </>
             )}
           </div>
