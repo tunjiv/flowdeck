@@ -352,6 +352,14 @@ function GoalCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
+            <Link
+              href={`/goals/${goal.id}`}
+              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="View details"
+              data-testid={`goal-open-${goal.id}`}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Link>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`goal-menu-${goal.id}`}>
@@ -365,14 +373,6 @@ function GoalCard({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Link
-              href={`/goals/${goal.id}`}
-              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              title="View details"
-              data-testid={`goal-open-${goal.id}`}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Link>
           </div>
         </div>
       </CardContent>
