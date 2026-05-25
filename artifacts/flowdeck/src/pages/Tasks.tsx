@@ -289,9 +289,6 @@ function TaskPanel({ taskId, assignedTagIds }: { taskId: number; assignedTagIds:
 
   return (
     <div className="pb-3 px-3.5" onClick={e => e.stopPropagation()}>
-      <div className="pl-8 pt-0.5">
-        <TagPicker taskId={taskId} assignedTagIds={assignedTagIds} />
-      </div>
       <div className="pl-8 mt-2">
         <p className="text-xs font-medium text-muted-foreground mb-1.5">Subtasks</p>
         {total > 0 && (
@@ -648,42 +645,6 @@ export default function Tasks() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onClick={() => { setEditTask(task); setFormOpen(true); }}>Edit</DropdownMenuItem>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <CalendarDays className="w-3.5 h-3.5 mr-2" /> Reschedule
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-56">
-                  <DropdownMenuItem onClick={() => reschedule(task.id, format(new Date(), "yyyy-MM-dd"))}>
-                    <span className="flex-1">Today</span>
-                    <span className="text-xs text-muted-foreground">{format(new Date(), "EEE")}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => reschedule(task.id, format(addDays(new Date(), 1), "yyyy-MM-dd"))}>
-                    <span className="flex-1">Tomorrow</span>
-                    <span className="text-xs text-muted-foreground">{format(addDays(new Date(), 1), "EEE")}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => reschedule(task.id, format(nextMonday(new Date()), "yyyy-MM-dd"))}>
-                    <span className="flex-1">Next week</span>
-                    <span className="text-xs text-muted-foreground">{format(nextMonday(new Date()), "EEE, MMM d")}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <div className="p-1">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground flex items-center">
-                          <CalendarDays className="w-3.5 h-3.5 mr-2" /> Pick a date…
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={task.dueDate ? new Date(task.dueDate + "T00:00:00") : undefined}
-                          onSelect={d => { if (d) reschedule(task.id, format(d, "yyyy-MM-dd")); }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDelete(task.id)}>
                 <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
