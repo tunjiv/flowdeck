@@ -250,8 +250,9 @@ export default function GoalDetail() {
             </div>
           )}
           {goal.goalType === "quantitative" && (
-            <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
               <span>Current: <span className="text-foreground font-medium">{goal.currentValue ?? 0}</span></span>
+              <span className="text-muted-foreground/60">→</span>
               <span>Target: <span className="text-foreground font-medium">{goal.targetValue ?? "—"}</span></span>
             </div>
           )}
