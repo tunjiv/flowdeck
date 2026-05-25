@@ -748,7 +748,7 @@ export default function Habits() {
                           )}
                           {linkedGoal && (
                             <Link
-                              href={`/goals/${linkedGoal.id}`}
+                              href={`/habits/goal/${linkedGoal.id}`}
                               onClick={e => e.stopPropagation()}
                               className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1 max-w-[12rem] truncate"
                               title={linkedGoal.title}

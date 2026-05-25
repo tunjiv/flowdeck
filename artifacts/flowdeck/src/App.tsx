@@ -179,6 +179,21 @@ function GoalDetailRoute() {
   );
 }
 
+function GoalFromHabitsRoute() {
+  return (
+    <>
+      <Show when="signed-in">
+        <Layout>
+          <GoalDetail backHref="/habits" />
+        </Layout>
+      </Show>
+      <Show when="signed-out">
+        <RedirectToSignIn />
+      </Show>
+    </>
+  );
+}
+
 function HabitDetailRoute() {
   return (
     <>
@@ -218,6 +233,7 @@ function AppRouter() {
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
           <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
+          <Route path="/habits/goal/:id" component={GoalFromHabitsRoute} />
           <Route path="/goals/:id" component={GoalDetailRoute} />
           <Route path="/goals" component={() => <ProtectedRoute component={Goals} />} />
           <Route path="/tasks" component={() => <ProtectedRoute component={Tasks} />} />

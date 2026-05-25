@@ -30,7 +30,7 @@ type HabitStatus = "done" | "skipped" | "missed";
 const today = format(new Date(), "yyyy-MM-dd");
 const last7 = Array.from({ length: 7 }, (_, i) => format(subDays(new Date(), 6 - i), "yyyy-MM-dd"));
 
-export default function GoalDetail() {
+export default function GoalDetail({ backHref = "/goals" }: { backHref?: string } = {}) {
   const { id } = useParams<{ id: string }>();
   const goalId = Number(id);
   const qc = useQueryClient();
@@ -186,7 +186,7 @@ export default function GoalDetail() {
     return (
       <div className="p-6 max-w-2xl mx-auto text-center py-16">
         <p className="text-muted-foreground">Goal not found.</p>
-        <Link href="/goals"><Button variant="outline" className="mt-3">Back to goals</Button></Link>
+        <Link href={backHref}><Button variant="outline" className="mt-3">Back</Button></Link>
       </div>
     );
   }
@@ -196,7 +196,7 @@ export default function GoalDetail() {
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5">
       <div className="flex items-center gap-3">
-        <Link href="/goals">
+        <Link href={backHref}>
           <Button variant="ghost" size="icon" className="h-8 w-8">
             <ArrowLeft className="w-4 h-4" />
           </Button>
