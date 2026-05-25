@@ -108,7 +108,8 @@ export interface GoalInput {
   /** @minLength 1 */
   title: string;
   description?: string;
-  categoryId?: number;
+  /** @nullable */
+  categoryId?: number | null;
   goalType: GoalInputGoalType;
   priority: GoalInputPriority;
   targetValue?: number;
@@ -141,7 +142,8 @@ export interface GoalUpdate {
   /** @minLength 1 */
   title?: string;
   description?: string;
-  categoryId?: number;
+  /** @nullable */
+  categoryId?: number | null;
   status?: GoalUpdateStatus;
   priority?: GoalUpdatePriority;
   targetValue?: number;

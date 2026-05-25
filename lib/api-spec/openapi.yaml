@@ -1185,7 +1185,7 @@ components:
         description:
           type: string
         categoryId:
-          type: integer
+          type: ["integer", "null"]
         goalType:
           type: string
           enum: [quantitative, habit, milestone]
@@ -1212,7 +1212,7 @@ components:
         description:
           type: string
         categoryId:
-          type: integer
+          type: ["integer", "null"]
         status:
           type: string
           enum: [active, paused, completed, archived]

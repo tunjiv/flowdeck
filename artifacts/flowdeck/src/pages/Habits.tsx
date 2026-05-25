@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Link } from "wouter";
+import { useState, useMemo, useEffect } from "react";
+import { Link, useSearch } from "wouter";
 import {
   useListHabits,
   useCreateHabit,
@@ -209,10 +209,11 @@ function RecurrencePicker({ value, config, onChange, onConfigChange }: {
   );
 }
 
-function HabitForm({ open, onClose, initial }: {
+function HabitForm({ open, onClose, initial, presetGoalId }: {
   open: boolean;
   onClose: () => void;
   initial?: { id: number; name: string; frequency: string; color?: string | null; motivationNote?: string | null; graceDaysPerWeek?: number | null; recurrenceConfig?: string | null; goalId?: number | null; };
+  presetGoalId?: number;
 }) {
   const qc = useQueryClient();
   const { data: goals } = useListGoals();
@@ -232,7 +233,7 @@ function HabitForm({ open, onClose, initial }: {
   const [color, setColor] = useState(initial?.color ?? "#14b8a6");
   const [motivationNote, setMotivationNote] = useState(initial?.motivationNote ?? "");
   const [graceDays, setGraceDays] = useState(String(initial?.graceDaysPerWeek ?? "0"));
-  const [goalId, setGoalId] = useState(String(initial?.goalId ?? ""));
+  const [goalId, setGoalId] = useState(String(initial?.goalId ?? presetGoalId ?? ""));
 
   const handleSubmit = () => {
     if (!name.trim()) { toast.error("Name is required"); return; }
@@ -539,8 +540,25 @@ export default function Habits() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editHabit, setEditHabit] = useState<any>(null);
+  const [presetGoalId, setPresetGoalId] = useState<number | undefined>(undefined);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"habits" | "trends">("habits");
+
+  // Auto-open habit creation form when arriving from Goals "create linked habit" flow.
+  const search = useSearch();
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const gid = params.get("goalId");
+    if (gid && !Number.isNaN(Number(gid))) {
+      setPresetGoalId(Number(gid));
+      setEditHabit(null);
+      setFormOpen(true);
+      // Clean the URL so re-renders / back-nav don't keep re-opening it.
+      const url = new URL(window.location.href);
+      url.searchParams.delete("goalId");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [search]);
 
   const logsByKey = useMemo((): Record<string, { id: number; status: string }> => {
     const map: Record<string, { id: number; status: string }> = {};
@@ -954,10 +972,11 @@ export default function Habits() {
       )}
 
       <HabitForm
-        key={editHabit?.id ?? "new"}
+        key={editHabit?.id ?? (presetGoalId ? `new-g${presetGoalId}` : "new")}
         open={formOpen}
-        onClose={() => { setFormOpen(false); setEditHabit(null); }}
+        onClose={() => { setFormOpen(false); setEditHabit(null); setPresetGoalId(undefined); }}
         initial={editHabit ?? undefined}
+        presetGoalId={editHabit ? undefined : presetGoalId}
       />
     </div>
   );

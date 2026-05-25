@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
-  LayoutDashboard, Target, CheckSquare, Repeat, Timer, Settings,
+  LayoutDashboard, Target, CheckSquare, Repeat, Tag, Timer, Settings,
   Menu, LogOut, Moon, Sun, PanelLeftClose,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/goals", label: "Goals", icon: Target },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/habits", label: "Habits", icon: Repeat },
+  { href: "/categories", label: "Categories", icon: Tag },
   { href: "/focus", label: "Focus", icon: Timer },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

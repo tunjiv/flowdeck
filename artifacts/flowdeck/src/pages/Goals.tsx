@@ -1,20 +1,23 @@
 import { useState, useMemo } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   useListGoals, useCreateGoal, useUpdateGoal, useDeleteGoal,
+  useListCategories,
   getListGoalsQueryKey,
 } from "@workspace/api-client-react";
-import type { Goal } from "@workspace/api-client-react";
+import type { Goal, Category } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { DateRange } from "react-day-picker";
 import {
   Plus, Target, ChevronRight, Trash2, MoreHorizontal,
-  CheckCircle2, Circle, Filter, X, Search, Check, ChevronDown,
+  CheckCircle2, Circle, Filter, X, Search, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -28,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { useGoalMilestoneTracker, checkGoalMilestone } from "@/lib/goalMilestones";
 import { useLocalStorage } from "@/lib/useLocalStorage";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -37,17 +41,6 @@ const priorityColors: Record<string, string> = {
   medium: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   low: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
-
-const SORT_OPTIONS = [
-  { label: "Due date — soonest", sortBy: "dueDate" as const, sortDir: "asc" as const },
-  { label: "Due date — latest",  sortBy: "dueDate" as const, sortDir: "desc" as const },
-  { label: "Priority — highest", sortBy: "priority" as const, sortDir: "asc" as const },
-  { label: "Alphabetical",       sortBy: "title" as const,   sortDir: "asc" as const },
-  { label: "Recently created",   sortBy: "createdAt" as const, sortDir: "desc" as const },
-] as const;
-
-type SortBy = (typeof SORT_OPTIONS)[number]["sortBy"];
-type SortDir = "asc" | "desc";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toggleMulti(current: string[], value: string): string[] {
@@ -85,25 +78,33 @@ type GoalFilters = {
   search: string;
   statuses: string[];
   priorities: string[];
-  dateMode: "none" | "range" | "exact";
-  dateStart: string;
-  dateEnd: string;
-  dateExact: string;
-  sortBy: SortBy | "status";
-  sortDir: SortDir;
+  categoryId: string;   // "all" or numeric id as string
+  dateFrom: string;     // ISO yyyy-mm-dd
+  dateTo: string;       // ISO yyyy-mm-dd
 };
 
 const DEFAULT_FILTERS: GoalFilters = {
   search: "",
   statuses: ["all"],
   priorities: ["all"],
-  dateMode: "none",
-  dateStart: "",
-  dateEnd: "",
-  dateExact: "",
-  sortBy: "dueDate",
-  sortDir: "asc",
+  categoryId: "all",
+  dateFrom: "",
+  dateTo: "",
 };
+
+function strToDate(s: string): Date | undefined {
+  if (!s) return undefined;
+  // Parse as local date to avoid timezone drift.
+  const [y, m, d] = s.split("-").map(Number);
+  if (!y || !m || !d) return undefined;
+  return new Date(y, m - 1, d);
+}
+function dateToStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 // ── GoalSection ───────────────────────────────────────────────────────────────
 function GoalSection({
@@ -145,7 +146,7 @@ function GoalSection({
 
 // ── GoalForm ──────────────────────────────────────────────────────────────────
 function GoalForm({
-  open, onClose, initial,
+  open, onClose, initial, categories, onCreated,
 }: {
   open: boolean;
   onClose: () => void;
@@ -153,7 +154,10 @@ function GoalForm({
     id: number; title: string; description?: string | null; goalType: string;
     priority: string; status: string; targetValue?: number | null;
     currentValue?: number | null; targetEndDate?: string | null;
+    categoryId?: number | null;
   };
+  categories: Category[] | undefined;
+  onCreated?: (goal: Goal) => void;
 }) {
   const qc = useQueryClient();
   const create = useCreateGoal();
@@ -161,24 +165,27 @@ function GoalForm({
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [goalType, setGoalType] = useState(initial?.goalType ?? "quantitative");
   const [priority, setPriority] = useState(initial?.priority ?? "medium");
   const [status, setStatus] = useState(initial?.status ?? "active");
-  const [targetValue, setTargetValue] = useState(String(initial?.targetValue ?? ""));
-  const [currentValue, setCurrentValue] = useState(String(initial?.currentValue ?? "0"));
   const [targetEndDate, setTargetEndDate] = useState(initial?.targetEndDate ?? "");
+  const [categoryId, setCategoryId] = useState(
+    initial?.categoryId != null ? String(initial.categoryId) : "none"
+  );
 
   const handleSubmit = () => {
     if (!title.trim()) { toast.error("Title is required"); return; }
     const payload = {
       title: title.trim(),
       description: description.trim() || undefined,
-      goalType: goalType as "quantitative" | "milestone" | "habit",
+      // Type, target & current value are no longer editable; default to milestone
+      // (preserve existing goalType on update so old quantitative/habit goals keep working).
+      goalType: (initial?.goalType ?? "milestone") as "quantitative" | "milestone" | "habit",
       priority: priority as "high" | "medium" | "low",
       status: status as "active" | "completed" | "paused" | "archived",
-      targetValue: targetValue ? Number(targetValue) : undefined,
-      currentValue: currentValue ? Number(currentValue) : 0,
       targetEndDate: targetEndDate || undefined,
+      // Send explicit null when uncategorising so the server clears it,
+      // rather than dropping the field and leaving the prior value in place.
+      categoryId: categoryId === "none" ? null : Number(categoryId),
     };
     if (initial) {
       update.mutate({ id: initial.id, data: payload }, {
@@ -192,10 +199,11 @@ function GoalForm({
       });
     } else {
       create.mutate({ data: payload }, {
-        onSuccess: () => {
+        onSuccess: (created) => {
           qc.invalidateQueries({ queryKey: getListGoalsQueryKey() });
           toast.success("Goal created");
           onClose();
+          if (created) onCreated?.(created);
         },
         onError: () => toast.error("Failed to create goal"),
       });
@@ -219,17 +227,6 @@ function GoalForm({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Type</Label>
-              <Select value={goalType} onValueChange={setGoalType}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="quantitative">Quantitative</SelectItem>
-                  <SelectItem value="milestone">Milestone</SelectItem>
-                  <SelectItem value="habit">Habit</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
               <Label>Priority</Label>
               <Select value={priority} onValueChange={setPriority}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
@@ -240,31 +237,33 @@ function GoalForm({
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="paused">Paused</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div>
-            <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <Label>Category</Label>
+            <Select value={categoryId} onValueChange={setCategoryId}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="paused">Paused</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
+                <SelectItem value="none">None</SelectItem>
+                {(categories ?? []).map(c => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.icon} {c.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-          {goalType === "quantitative" && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="target-val">Target value</Label>
-                <Input id="target-val" type="number" value={targetValue} onChange={e => setTargetValue(e.target.value)} className="mt-1" placeholder="100" />
-              </div>
-              <div>
-                <Label htmlFor="current-val">Current value</Label>
-                <Input id="current-val" type="number" value={currentValue} onChange={e => setCurrentValue(e.target.value)} className="mt-1" placeholder="0" />
-              </div>
-            </div>
-          )}
           <div>
             <Label htmlFor="end-date">Target date</Label>
             <Input id="end-date" type="date" value={targetEndDate} onChange={e => setTargetEndDate(e.target.value)} className="mt-1" />
@@ -281,12 +280,9 @@ function GoalForm({
   );
 }
 
-// ── ProgressRing ──────────────────────────────────────────────────────────────
+// ── ProgressRing (kept for legacy quantitative goals) ─────────────────────────
 function ProgressRing({
-  pct,
-  size = 24,
-  onClick,
-  disabled,
+  pct, size = 24, onClick, disabled,
 }: {
   pct: number;
   size?: number;
@@ -318,25 +314,15 @@ function ProgressRing({
         style={{ transform: "rotate(-90deg)" }}
         aria-hidden="true"
       >
-        {/* Track */}
         <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
+          cx={size / 2} cy={size / 2} r={radius}
+          fill="none" stroke="currentColor" strokeWidth={strokeWidth}
           className="text-muted-foreground/25"
         />
-        {/* Progress arc — teal-500 when complete, primary when partial */}
         {!isEmpty && (
           <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={strokeWidth}
+            cx={size / 2} cy={size / 2} r={radius}
+            fill="none" stroke="currentColor" strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={isComplete ? 0 : offset}
@@ -350,10 +336,11 @@ function ProgressRing({
 
 // ── GoalCard ──────────────────────────────────────────────────────────────────
 function GoalCard({
-  goal, overdue, onToggleComplete, onEdit, onDelete, onUpdateProgress, isPending,
+  goal, overdue, category, onToggleComplete, onEdit, onDelete, onUpdateProgress, isPending,
 }: {
   goal: Goal;
   overdue: boolean;
+  category?: Category;
   onToggleComplete: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -405,7 +392,6 @@ function GoalCard({
 
           {/* Body */}
           <div className="flex-1 min-w-0">
-            {/* Title + ring + badges */}
             <div className="flex items-center gap-2 flex-wrap">
               {isQuantitative && (
                 <ProgressRing
@@ -420,16 +406,23 @@ function GoalCard({
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${priorityColors[goal.priority]}`}>
                 {goal.priority}
               </span>
+              {category && (
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1"
+                  style={{ backgroundColor: `${category.color}20`, color: category.color }}
+                >
+                  <span>{category.icon}</span>
+                  <span>{category.name}</span>
+                </span>
+              )}
             </div>
 
-            {/* Due date */}
             {goal.targetEndDate && (
               <p className={`text-xs mt-1.5 ${overdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
                 {overdue ? "Was due" : "Due"} {goal.targetEndDate}
               </p>
             )}
 
-            {/* Inline quick-log */}
             {logOpen && (
               <div className="mt-2 flex items-center gap-2">
                 <Input
@@ -472,9 +465,6 @@ function GoalCard({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
-                <DropdownMenuItem onClick={onToggleComplete}>
-                  {isCompleted ? "Reopen goal" : "Mark complete"}
-                </DropdownMenuItem>
                 <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
                   <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
                 </DropdownMenuItem>
@@ -490,7 +480,9 @@ function GoalCard({
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Goals() {
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
   const { data: goals, isLoading } = useListGoals();
+  const { data: categories } = useListCategories();
   const deleteGoal = useDeleteGoal();
   const updateGoal = useUpdateGoal();
 
@@ -498,12 +490,32 @@ export default function Goals() {
   const [editGoal, setEditGoal] = useState<typeof goals extends Array<infer T> ? T : any | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
-  const [filters, setFilters] = useLocalStorage<GoalFilters>("goals_filters_v2", DEFAULT_FILTERS);
+  const [filters, setFilters] = useLocalStorage<GoalFilters>("goals_filters_v3", DEFAULT_FILTERS);
+
+  // Post-create habit prompt
+  const [habitPromptGoal, setHabitPromptGoal] = useState<Goal | null>(null);
 
   useGoalMilestoneTracker(goals);
 
   const today = new Date().toISOString().split("T")[0];
   const thisWeekEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  const categoriesById = useMemo(() => {
+    const map = new Map<number, Category>();
+    (categories ?? []).forEach(c => map.set(c.id, c));
+    return map;
+  }, [categories]);
+
+  const dateRange: DateRange | null = (filters.dateFrom || filters.dateTo)
+    ? { from: strToDate(filters.dateFrom), to: strToDate(filters.dateTo) }
+    : null;
+
+  const setDateRange = (r: DateRange | null) => {
+    setF({
+      dateFrom: r?.from ? dateToStr(r.from) : "",
+      dateTo:   r?.to   ? dateToStr(r.to)   : "",
+    });
+  };
 
   const isGoalOverdue = (g: NonNullable<typeof goals>[number]) =>
     !!(g.targetEndDate && g.targetEndDate < today && g.status !== "completed" && g.status !== "archived");
@@ -522,36 +534,38 @@ export default function Goals() {
         if (!match) return false;
       }
       if (!f.priorities.includes("all") && !f.priorities.includes(g.priority)) return false;
-      if (f.dateMode === "exact" && f.dateExact && g.targetEndDate !== f.dateExact) return false;
-      if (f.dateMode === "range") {
-        if (f.dateStart && (g.targetEndDate ?? "") < f.dateStart) return false;
-        if (f.dateEnd && (g.targetEndDate ?? "") > f.dateEnd) return false;
+      if (f.categoryId !== "all") {
+        if (f.categoryId === "none") {
+          if (g.categoryId != null) return false;
+        } else if (String(g.categoryId ?? "") !== f.categoryId) {
+          return false;
+        }
+      }
+      if (f.dateFrom || f.dateTo) {
+        const due = g.targetEndDate ?? "";
+        if (!due) return false;
+        if (f.dateFrom && due < f.dateFrom) return false;
+        if (f.dateTo   && due > f.dateTo)   return false;
       }
       return true;
     });
   }, [goals, filters]);
 
+  // Fixed default sort: due date ascending, then by priority, then by creation.
   const sorted = useMemo(() => {
-    const dir = filters.sortDir === "asc" ? 1 : -1;
-    const sb = filters.sortBy === "status" ? "dueDate" : filters.sortBy;
     return [...filtered].sort((a, b) => {
-      switch (sb) {
-        case "dueDate":
-          if (!a.targetEndDate && !b.targetEndDate) return 0;
-          if (!a.targetEndDate) return dir; if (!b.targetEndDate) return -dir;
-          return a.targetEndDate.localeCompare(b.targetEndDate) * dir;
-        case "createdAt":
-          return ((a as any).createdAt ?? "").localeCompare((b as any).createdAt ?? "") * dir;
-        case "priority":
-          return ((PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99)) * dir;
-        case "title":
-          return a.title.localeCompare(b.title) * dir;
-        default: return 0;
-      }
+      const aDue = a.targetEndDate ?? "";
+      const bDue = b.targetEndDate ?? "";
+      if (aDue && bDue && aDue !== bDue) return aDue.localeCompare(bDue);
+      if (aDue && !bDue) return -1;
+      if (!aDue && bDue) return 1;
+      const ap = PRIORITY_RANK[a.priority] ?? 99;
+      const bp = PRIORITY_RANK[b.priority] ?? 99;
+      if (ap !== bp) return ap - bp;
+      return ((b as any).createdAt ?? "").localeCompare((a as any).createdAt ?? "");
     });
-  }, [filtered, filters.sortBy, filters.sortDir]);
+  }, [filtered]);
 
-  // ── Section grouping ─────────────────────────────────────────────────────
   const overdueGoals = sorted.filter(g => isGoalOverdue(g));
   const dueThisWeekGoals = sorted.filter(g =>
     !isGoalOverdue(g) &&
@@ -559,9 +573,6 @@ export default function Goals() {
     !!(g.targetEndDate && g.targetEndDate >= today && g.targetEndDate <= thisWeekEnd)
   );
   const completedGoals = sorted.filter(g => g.status === "completed");
-  // Active includes status=active (not overdue / not due-this-week) and
-  // status=paused goals so they remain visible rather than disappearing.
-  // Archived goals are intentionally excluded from all sections.
   const activeGoals = sorted.filter(g =>
     !isGoalOverdue(g) &&
     (g.status === "active" || g.status === "paused") &&
@@ -570,21 +581,19 @@ export default function Goals() {
 
   const isFiltered =
     filters.search !== "" || !filters.statuses.includes("all") ||
-    !filters.priorities.includes("all") || filters.dateMode !== "none";
+    !filters.priorities.includes("all") || filters.categoryId !== "all" ||
+    !!filters.dateFrom || !!filters.dateTo;
 
   const activeFilterCount = [
     filters.search !== "",
     !filters.statuses.includes("all"),
     !filters.priorities.includes("all"),
-    filters.dateMode !== "none",
+    filters.categoryId !== "all",
+    !!(filters.dateFrom || filters.dateTo),
   ].filter(Boolean).length;
 
   const clearFilters = () => setFilters(DEFAULT_FILTERS);
-  const setF = (patch: Partial<GoalFilters>) => setFilters({ ...filters, ...patch });
-
-  const activeSortLabel = SORT_OPTIONS.find(
-    o => o.sortBy === filters.sortBy && o.sortDir === filters.sortDir
-  )?.label ?? "Due date — soonest";
+  function setF(patch: Partial<GoalFilters>) { setFilters({ ...filters, ...patch }); }
 
   const handleDelete = (id: number) => {
     if (!confirm("Delete this goal?")) return;
@@ -607,6 +616,7 @@ export default function Goals() {
   const goalCardProps = (goal: NonNullable<typeof goals>[number], overdue: boolean) => ({
     goal,
     overdue,
+    category: goal.categoryId != null ? categoriesById.get(goal.categoryId) : undefined,
     onToggleComplete: () => handleToggleComplete(goal),
     onEdit: () => { setEditGoal(goal); setFormOpen(true); },
     onDelete: () => handleDelete(goal.id),
@@ -637,7 +647,7 @@ export default function Goals() {
         </Button>
       </div>
 
-      {/* Search + Sort (always visible) + Filter toggle */}
+      {/* Search + Filter toggle */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -657,29 +667,6 @@ export default function Goals() {
           )}
         </div>
 
-        {/* Sort dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5 text-sm">
-              Sort
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            {SORT_OPTIONS.map(opt => (
-              <DropdownMenuItem
-                key={`${opt.sortBy}:${opt.sortDir}`}
-                onClick={() => setF({ sortBy: opt.sortBy, sortDir: opt.sortDir })}
-                className="flex items-center justify-between"
-              >
-                {opt.label}
-                {activeSortLabel === opt.label && <Check className="w-3.5 h-3.5 text-primary ml-2" />}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Filter toggle */}
         <div className="relative">
           <Button
             variant="outline"
@@ -703,7 +690,7 @@ export default function Goals() {
         <div className="space-y-3 p-4 bg-muted/30 rounded-xl border border-border">
           {/* Status chips */}
           <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground pt-0.5 w-14 flex-shrink-0">Status</span>
+            <span className="text-xs font-medium text-muted-foreground pt-0.5 w-16 flex-shrink-0">Status</span>
             <div className="flex flex-wrap gap-1.5">
               {[
                 { value: "all", label: "All" },
@@ -724,7 +711,7 @@ export default function Goals() {
 
           {/* Priority chips */}
           <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground pt-0.5 w-14 flex-shrink-0">Priority</span>
+            <span className="text-xs font-medium text-muted-foreground pt-0.5 w-16 flex-shrink-0">Priority</span>
             <div className="flex flex-wrap gap-1.5">
               {[
                 { value: "all", label: "All" },
@@ -740,32 +727,30 @@ export default function Goals() {
             </div>
           </div>
 
-          {/* Date */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <Select value={filters.dateMode} onValueChange={v => setF({ dateMode: v as GoalFilters["dateMode"] })}>
-              <SelectTrigger className="h-8 text-xs w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Any due date</SelectItem>
-                <SelectItem value="exact">Specific date</SelectItem>
-                <SelectItem value="range">Date range</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Category + Date row */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground w-16 flex-shrink-0">Category</span>
+              <Select value={filters.categoryId} onValueChange={v => setF({ categoryId: v })}>
+                <SelectTrigger className="h-8 text-xs w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  <SelectItem value="none">Uncategorised</SelectItem>
+                  {(categories ?? []).map(c => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.icon} {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            {filters.dateMode === "exact" && (
-              <Input type="date" value={filters.dateExact} onChange={e => setF({ dateExact: e.target.value })}
-                className="h-8 text-xs w-[150px]" />
-            )}
-            {filters.dateMode === "range" && (
-              <>
-                <Input type="date" value={filters.dateStart} onChange={e => setF({ dateStart: e.target.value })}
-                  className="h-8 text-xs w-[140px]" placeholder="From" />
-                <span className="text-xs text-muted-foreground">—</span>
-                <Input type="date" value={filters.dateEnd} onChange={e => setF({ dateEnd: e.target.value })}
-                  className="h-8 text-xs w-[140px]" placeholder="To" />
-              </>
-            )}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground w-12 flex-shrink-0">Due</span>
+              <DateRangeFilter value={dateRange} onChange={setDateRange} allTimeLabel="Any date" />
+            </div>
           </div>
         </div>
       )}
@@ -841,7 +826,34 @@ export default function Goals() {
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditGoal(null); }}
         initial={editGoal ?? undefined}
+        categories={categories}
+        onCreated={(g) => setHabitPromptGoal(g)}
       />
+
+      {/* Post-create: prompt to make a linked habit */}
+      <Dialog open={!!habitPromptGoal} onOpenChange={(o) => { if (!o) setHabitPromptGoal(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add a habit for this goal?</DialogTitle>
+            <DialogDescription>
+              Habits help you make steady progress toward "{habitPromptGoal?.title}".
+              You can always add one later from the Habits page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHabitPromptGoal(null)}>
+              Not now
+            </Button>
+            <Button onClick={() => {
+              const g = habitPromptGoal;
+              setHabitPromptGoal(null);
+              if (g) navigate(`/habits?goalId=${g.id}`);
+            }}>
+              Create habit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

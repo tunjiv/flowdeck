@@ -121,7 +121,7 @@ export const ListGoalsResponse = zod.array(ListGoalsResponseItem);
 export const CreateGoalBody = zod.object({
   title: zod.string().min(1),
   description: zod.string().optional(),
-  categoryId: zod.number().optional(),
+  categoryId: zod.number().nullish(),
   goalType: zod.enum(["quantitative", "habit", "milestone"]),
   priority: zod.enum(["high", "medium", "low"]),
   targetValue: zod.number().optional(),
@@ -166,7 +166,7 @@ export const UpdateGoalParams = zod.object({
 export const UpdateGoalBody = zod.object({
   title: zod.string().min(1).optional(),
   description: zod.string().optional(),
-  categoryId: zod.number().optional(),
+  categoryId: zod.number().nullish(),
   status: zod.enum(["active", "paused", "completed", "archived"]).optional(),
   priority: zod.enum(["high", "medium", "low"]).optional(),
   targetValue: zod.number().optional(),
