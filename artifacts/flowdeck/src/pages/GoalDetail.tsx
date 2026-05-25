@@ -253,7 +253,7 @@ export default function GoalDetail() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
               <span>Current: <span className="text-foreground font-medium">{goal.currentValue ?? 0}</span></span>
               <span className="text-muted-foreground/60">→</span>
-              <span>Target: <span className="text-foreground font-medium">{goal.targetValue ?? "—"}</span></span>
+              <span className="text-foreground font-medium">{goal.targetValue ?? "—"}</span>
             </div>
           )}
           {editing ? (
