@@ -425,10 +425,6 @@ function TaskForm({ open, onClose, initial }: {
               </Select>
             </div>
           </div>
-          <div>
-            <Label htmlFor="estimated">Estimated (min)</Label>
-            <Input id="estimated" type="number" value={estimated} onChange={e => setEstimated(e.target.value)} className="mt-1" placeholder="25" />
-          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
