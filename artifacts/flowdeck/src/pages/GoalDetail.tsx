@@ -30,7 +30,7 @@ type HabitStatus = "done" | "skipped" | "missed";
 const today = format(new Date(), "yyyy-MM-dd");
 const last7 = Array.from({ length: 7 }, (_, i) => format(subDays(new Date(), 6 - i), "yyyy-MM-dd"));
 
-export default function GoalDetail({ backHref = "/goals" }: { backHref?: string } = {}) {
+export default function GoalDetail({ backHref = "/goals", showProgress = true }: { backHref?: string; showProgress?: boolean } = {}) {
   const { id } = useParams<{ id: string }>();
   const goalId = Number(id);
   const qc = useQueryClient();
@@ -222,7 +222,7 @@ export default function GoalDetail({ backHref = "/goals" }: { backHref?: string 
         </div>
       )}
 
-      {backHref === "/goals" && (
+      {showProgress && (
         <Card className="border-border">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
@@ -271,7 +271,7 @@ export default function GoalDetail({ backHref = "/goals" }: { backHref?: string 
                 <Button size="sm" onClick={handleUpdateProgress} disabled={updateGoal.isPending}>Save</Button>
                 <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
               </div>
-            ) : goal.goalType === "quantitative" ? (
+            ) : goal.goalType === "quantitative" && backHref === "/goals" ? (
               <Button variant="outline" size="sm" onClick={() => { setEditing(true); setCurrentValue(String(goal.currentValue ?? 0)); }}>
                 Update progress
               </Button>

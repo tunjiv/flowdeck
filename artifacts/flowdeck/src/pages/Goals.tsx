@@ -352,6 +352,11 @@ function GoalCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
+            <Link href={`/goals/view/${goal.id}`}>
+              <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`goal-drilldown-${goal.id}`} title="View details">
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </Link>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`goal-menu-${goal.id}`}>
