@@ -17,7 +17,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Repeat, Trash2, MoreHorizontal, ChevronDown, ChevronUp,
-  Flame, TrendingUp, BarChart2,
+  Flame, TrendingUp, BarChart2, Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -342,7 +342,7 @@ function HabitForm({ open, onClose, initial, presetGoalId }: {
   );
 }
 
-function SevenDotStrip({ habitId, logs }: { habitId: number; logs: Record<string, { id: number; status: string }> }) {
+function SevenDotStrip({ habitId, logs, startDate }: { habitId: number; logs: Record<string, { id: number; status: string }>; startDate?: string | null }) {
   // Show 3 past + today + 3 future, so future days appear distinctly gray
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = subDays(new Date(), 3 - i);
@@ -350,16 +350,20 @@ function SevenDotStrip({ habitId, logs }: { habitId: number; logs: Record<string
     const entry = logs[`${habitId}:${key}`];
     const isTodayDay = i === 3;
     const isFutureDay = i > 3;
-    return { key, label: format(d, "EEEEE"), entry, isTodayDay, isFutureDay };
+    const isBeforeStart = !!startDate && key < startDate;
+    return { key, label: format(d, "EEEEE"), entry, isTodayDay, isFutureDay, isBeforeStart };
   });
 
   return (
     <div className="flex gap-1">
-      {days.map(({ key, label, entry, isTodayDay, isFutureDay }) => {
+      {days.map(({ key, label, entry, isTodayDay, isFutureDay, isBeforeStart }) => {
         const s = entry?.status;
         let dot = "border border-dashed border-border bg-transparent";
         let title = "No log";
-        if (isFutureDay) {
+        if (isBeforeStart) {
+          dot = "bg-transparent border border-border/30";
+          title = "Before start";
+        } else if (isFutureDay) {
           dot = "bg-muted/40 border border-border/50";
           title = "Upcoming";
         } else if (s === "done") { dot = "bg-primary border border-primary"; title = "Done"; }
@@ -367,8 +371,8 @@ function SevenDotStrip({ habitId, logs }: { habitId: number; logs: Record<string
         else if (s === "missed") { dot = "bg-red-400 border border-red-400"; title = "Missed"; }
         return (
           <div key={key} className="flex flex-col items-center gap-0.5" title={title}>
-            <div className={`w-2.5 h-2.5 rounded-full ${dot} ${isTodayDay ? "ring-2 ring-foreground/40 ring-offset-1" : ""}`} />
-            <span className={`text-[9px] ${isFutureDay ? "text-muted-foreground/50" : "text-muted-foreground"}`}>{label}</span>
+            <div className={`w-2.5 h-2.5 rounded-full ${dot} ${isTodayDay ? "ring-2 ring-foreground/40 ring-offset-1" : ""} ${isBeforeStart ? "opacity-40" : ""}`} />
+            <span className={`text-[9px] ${isFutureDay || isBeforeStart ? "text-muted-foreground/50" : "text-muted-foreground"}`}>{label}</span>
           </div>
         );
       })}
@@ -539,6 +543,12 @@ export default function Habits() {
   const today = format(new Date(), "yyyy-MM-dd");
 
   const { data: habits, isLoading } = useListHabits();
+  const { data: allGoals } = useListGoals();
+  const goalsById = useMemo(() => {
+    const m = new Map<number, { id: number; title: string }>();
+    (allGoals ?? []).forEach(g => m.set(g.id, { id: g.id, title: g.title }));
+    return m;
+  }, [allGoals]);
   const { data: allLogs } = useListHabitLogs();
   const logHabit = useLogHabit();
   const updateLog = useUpdateHabitLog();
@@ -688,11 +698,14 @@ export default function Habits() {
                   ? "border-red-400/40 bg-red-50 dark:bg-red-900/10"
                   : "border-border bg-card";
 
-                // Past catch-up days (last 7 excluding today, scheduled on that day, no log yet)
+                // Past catch-up days (last 7 excluding today, scheduled on that day, no log yet, on/after start date)
+                const habitStart = habit.startDate ?? null;
                 const catchUpDays = last7Dates.slice(0, 6).filter(d =>
                   !logsByKey[`${habit.id}:${d}`] &&
+                  (!habitStart || d >= habitStart) &&
                   isScheduledOn(habit.frequency, habit.recurrenceConfig, parseISO(d))
                 );
+                const linkedGoal = habit.goalId != null ? goalsById.get(habit.goalId) : undefined;
 
                 return (
                   <div
@@ -733,9 +746,20 @@ export default function Habits() {
                               {catchUpDays.length} unlogged
                             </span>
                           )}
+                          {linkedGoal && (
+                            <Link
+                              href={`/goals/${linkedGoal.id}`}
+                              onClick={e => e.stopPropagation()}
+                              className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1 max-w-[12rem] truncate"
+                              title={linkedGoal.title}
+                            >
+                              <Target className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">{linkedGoal.title}</span>
+                            </Link>
+                          )}
                         </div>
                         <div className="mt-1.5">
-                          <SevenDotStrip habitId={habit.id} logs={logsByKey} />
+                          <SevenDotStrip habitId={habit.id} logs={logsByKey} startDate={habit.startDate ?? null} />
                         </div>
                       </div>
 
