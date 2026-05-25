@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import {
-  useListGoals, useCreateGoal, useUpdateGoal, useDeleteGoal, useListCategories,
+  useListGoals, useCreateGoal, useUpdateGoal, useDeleteGoal,
   getListGoalsQueryKey,
 } from "@workspace/api-client-react";
 import type { Goal } from "@workspace/api-client-react";
@@ -85,7 +85,6 @@ type GoalFilters = {
   search: string;
   statuses: string[];
   priorities: string[];
-  categoryId: string;
   dateMode: "none" | "range" | "exact";
   dateStart: string;
   dateEnd: string;
@@ -98,7 +97,6 @@ const DEFAULT_FILTERS: GoalFilters = {
   search: "",
   statuses: ["all"],
   priorities: ["all"],
-  categoryId: "",
   dateMode: "none",
   dateStart: "",
   dateEnd: "",
@@ -154,11 +152,10 @@ function GoalForm({
   initial?: {
     id: number; title: string; description?: string | null; goalType: string;
     priority: string; status: string; targetValue?: number | null;
-    currentValue?: number | null; categoryId?: number | null; targetEndDate?: string | null;
+    currentValue?: number | null; targetEndDate?: string | null;
   };
 }) {
   const qc = useQueryClient();
-  const { data: categories } = useListCategories();
   const create = useCreateGoal();
   const update = useUpdateGoal();
 
@@ -169,7 +166,6 @@ function GoalForm({
   const [status, setStatus] = useState(initial?.status ?? "active");
   const [targetValue, setTargetValue] = useState(String(initial?.targetValue ?? ""));
   const [currentValue, setCurrentValue] = useState(String(initial?.currentValue ?? "0"));
-  const [categoryId, setCategoryId] = useState(String(initial?.categoryId ?? ""));
   const [targetEndDate, setTargetEndDate] = useState(initial?.targetEndDate ?? "");
 
   const handleSubmit = () => {
@@ -182,7 +178,6 @@ function GoalForm({
       status: status as "active" | "completed" | "paused" | "archived",
       targetValue: targetValue ? Number(targetValue) : undefined,
       currentValue: currentValue ? Number(currentValue) : 0,
-      categoryId: categoryId ? Number(categoryId) : undefined,
       targetEndDate: targetEndDate || undefined,
     };
     if (initial) {
@@ -270,21 +265,9 @@ function GoalForm({
               </div>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Category</Label>
-              <Select value={categoryId || "none"} onValueChange={v => setCategoryId(v === "none" ? "" : v)}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {categories?.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="end-date">Target date</Label>
-              <Input id="end-date" type="date" value={targetEndDate} onChange={e => setTargetEndDate(e.target.value)} className="mt-1" />
-            </div>
+          <div>
+            <Label htmlFor="end-date">Target date</Label>
+            <Input id="end-date" type="date" value={targetEndDate} onChange={e => setTargetEndDate(e.target.value)} className="mt-1" />
           </div>
         </div>
         <DialogFooter>
@@ -508,7 +491,6 @@ function GoalCard({
 export default function Goals() {
   const qc = useQueryClient();
   const { data: goals, isLoading } = useListGoals();
-  const { data: categories = [] } = useListCategories();
   const deleteGoal = useDeleteGoal();
   const updateGoal = useUpdateGoal();
 
@@ -540,7 +522,6 @@ export default function Goals() {
         if (!match) return false;
       }
       if (!f.priorities.includes("all") && !f.priorities.includes(g.priority)) return false;
-      if (f.categoryId && String(g.categoryId ?? "") !== f.categoryId) return false;
       if (f.dateMode === "exact" && f.dateExact && g.targetEndDate !== f.dateExact) return false;
       if (f.dateMode === "range") {
         if (f.dateStart && (g.targetEndDate ?? "") < f.dateStart) return false;
@@ -589,13 +570,12 @@ export default function Goals() {
 
   const isFiltered =
     filters.search !== "" || !filters.statuses.includes("all") ||
-    !filters.priorities.includes("all") || filters.categoryId !== "" || filters.dateMode !== "none";
+    !filters.priorities.includes("all") || filters.dateMode !== "none";
 
   const activeFilterCount = [
     filters.search !== "",
     !filters.statuses.includes("all"),
     !filters.priorities.includes("all"),
-    filters.categoryId !== "",
     filters.dateMode !== "none",
   ].filter(Boolean).length;
 
@@ -760,20 +740,8 @@ export default function Goals() {
             </div>
           </div>
 
-          {/* Category + Date */}
+          {/* Date */}
           <div className="flex flex-wrap gap-2 items-center">
-            {categories.length > 0 && (
-              <Select value={filters.categoryId || "all"} onValueChange={v => setF({ categoryId: v === "all" ? "" : v })}>
-                <SelectTrigger className="h-8 text-xs w-[150px]">
-                  <SelectValue placeholder="All categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All categories</SelectItem>
-                  {categories.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )}
-
             <Select value={filters.dateMode} onValueChange={v => setF({ dateMode: v as GoalFilters["dateMode"] })}>
               <SelectTrigger className="h-8 text-xs w-[140px]">
                 <SelectValue />

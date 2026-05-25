@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
-  LayoutDashboard, Target, CheckSquare, Repeat, Tag, Timer, Settings,
-  Menu, LogOut, Moon, Sun, CalendarDays, PanelLeftClose,
+  LayoutDashboard, Target, CheckSquare, Repeat, Timer, Settings,
+  Menu, LogOut, Moon, Sun, PanelLeftClose,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -16,9 +16,7 @@ const navItems = [
   { href: "/goals", label: "Goals", icon: Target },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/habits", label: "Habits", icon: Repeat },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/focus", label: "Focus", icon: Timer },
-  { href: "/categories", label: "Categories", icon: Tag },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

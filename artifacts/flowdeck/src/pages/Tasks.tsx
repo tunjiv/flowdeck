@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import {
   useListTasks, useCreateTask, useUpdateTask, useDeleteTask, useCompleteTask,
-  useListGoals, useListCategories, useListSubtasks, useCreateSubtask,
+  useListGoals, useListSubtasks, useCreateSubtask,
   useToggleSubtask, useDeleteSubtask, useListTags, useCreateTag,
   useListTaskTagAssociations, useAddTagToTask, useRemoveTagFromTask,
   getListTasksQueryKey, getListSubtasksQueryKey, getListTaskTagAssociationsQueryKey,
@@ -345,12 +345,11 @@ function TaskForm({ open, onClose, initial }: {
   initial?: {
     id: number; title: string; notes?: string | null; priority: string;
     dueDate?: string | null; estimatedMinutes?: number | null;
-    goalId?: number | null; categoryId?: number | null;
+    goalId?: number | null;
   };
 }) {
   const qc = useQueryClient();
   const { data: goals } = useListGoals();
-  const { data: categories } = useListCategories();
   const create = useCreateTask();
   const update = useUpdateTask();
 
@@ -360,7 +359,6 @@ function TaskForm({ open, onClose, initial }: {
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
   const [estimated, setEstimated] = useState(String(initial?.estimatedMinutes ?? ""));
   const [goalId, setGoalId] = useState(String(initial?.goalId ?? ""));
-  const [categoryId, setCategoryId] = useState(String(initial?.categoryId ?? ""));
 
   const handleSubmit = () => {
     if (!title.trim()) { toast.error("Title is required"); return; }
@@ -371,7 +369,6 @@ function TaskForm({ open, onClose, initial }: {
       dueDate: dueDate || undefined,
       estimatedMinutes: estimated ? Number(estimated) : undefined,
       goalId: goalId ? Number(goalId) : undefined,
-      categoryId: categoryId ? Number(categoryId) : undefined,
     };
     if (initial) {
       update.mutate({ id: initial.id, data: payload }, {
@@ -427,16 +424,6 @@ function TaskForm({ open, onClose, initial }: {
                   {goals?.filter(g => g.status === "active").map(g => (
                     <SelectItem key={g.id} value={String(g.id)}>{g.title}</SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Category</Label>
-              <Select value={categoryId || "none"} onValueChange={v => setCategoryId(v === "none" ? "" : v)}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {categories?.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

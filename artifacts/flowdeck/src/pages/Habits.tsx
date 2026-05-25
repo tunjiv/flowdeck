@@ -9,7 +9,6 @@ import {
   useLogHabit,
   useUpdateHabitLog,
   useDeleteHabitLog,
-  useListCategories,
   useListGoals,
   getListHabitsQueryKey,
   getListHabitLogsQueryKey,
@@ -213,10 +212,9 @@ function RecurrencePicker({ value, config, onChange, onConfigChange }: {
 function HabitForm({ open, onClose, initial }: {
   open: boolean;
   onClose: () => void;
-  initial?: { id: number; name: string; frequency: string; color?: string | null; categoryId?: number | null; motivationNote?: string | null; graceDaysPerWeek?: number | null; recurrenceConfig?: string | null; goalId?: number | null; };
+  initial?: { id: number; name: string; frequency: string; color?: string | null; motivationNote?: string | null; graceDaysPerWeek?: number | null; recurrenceConfig?: string | null; goalId?: number | null; };
 }) {
   const qc = useQueryClient();
-  const { data: categories } = useListCategories();
   const { data: goals } = useListGoals();
   const create = useCreateHabit();
   const update = useUpdateHabit();
@@ -232,7 +230,6 @@ function HabitForm({ open, onClose, initial }: {
   const [frequency, setFrequency] = useState<FreqPreset>((initial?.frequency as FreqPreset) ?? "daily");
   const [customCfg, setCustomCfg] = useState<RecurrenceConfig>(parseInitialConfig);
   const [color, setColor] = useState(initial?.color ?? "#14b8a6");
-  const [categoryId, setCategoryId] = useState(String(initial?.categoryId ?? ""));
   const [motivationNote, setMotivationNote] = useState(initial?.motivationNote ?? "");
   const [graceDays, setGraceDays] = useState(String(initial?.graceDaysPerWeek ?? "0"));
   const [goalId, setGoalId] = useState(String(initial?.goalId ?? ""));
@@ -245,7 +242,6 @@ function HabitForm({ open, onClose, initial }: {
       frequency: frequency as "daily" | "weekdays" | "weekly" | "monthly" | "yearly" | "custom",
       recurrenceConfig,
       color,
-      categoryId: categoryId ? Number(categoryId) : undefined,
       goalId: goalId ? Number(goalId) : undefined,
       motivationNote: motivationNote.trim() || undefined,
       graceDaysPerWeek: Number(graceDays),
@@ -295,29 +291,17 @@ function HabitForm({ open, onClose, initial }: {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Category</Label>
-              <Select value={categoryId || "none"} onValueChange={v => setCategoryId(v === "none" ? "" : v)}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {categories?.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Linked goal</Label>
-              <Select value={goalId || "none"} onValueChange={v => setGoalId(v === "none" ? "" : v)}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {goals?.filter(g => g.status === "active").map(g => (
-                    <SelectItem key={g.id} value={String(g.id)}>{g.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <Label>Linked goal</Label>
+            <Select value={goalId || "none"} onValueChange={v => setGoalId(v === "none" ? "" : v)}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {goals?.filter(g => g.status === "active").map(g => (
+                  <SelectItem key={g.id} value={String(g.id)}>{g.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
