@@ -163,6 +163,9 @@ export default function Categories() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editCategory, setEditCategory] = useState<Category | null>(null);
+  const [formNonce, setFormNonce] = useState(0);
+  const openCreate = () => { setEditCategory(null); setFormNonce(n => n + 1); setFormOpen(true); };
+  const openEdit = (cat: Category) => { setEditCategory(cat); setFormNonce(n => n + 1); setFormOpen(true); };
 
   const handleDelete = (id: number) => {
     if (!confirm("Delete this category? Goals and tasks using it will be uncategorised.")) return;
@@ -184,7 +187,7 @@ export default function Categories() {
             Group goals, tasks and habits with shared themes.
           </p>
         </div>
-        <Button onClick={() => { setEditCategory(null); setFormOpen(true); }} data-testid="create-category">
+        <Button onClick={openCreate} data-testid="create-category">
           <Plus className="w-4 h-4 mr-1.5" /> New category
         </Button>
       </div>
@@ -200,7 +203,7 @@ export default function Categories() {
           <p className="text-sm text-muted-foreground mb-4">
             Create your first category to start organising goals.
           </p>
-          <Button onClick={() => setFormOpen(true)}>
+          <Button onClick={openCreate}>
             <Plus className="w-4 h-4 mr-1.5" /> Create your first category
           </Button>
         </div>
@@ -237,7 +240,7 @@ export default function Categories() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => { setEditCategory(cat); setFormOpen(true); }}>
+                      <DropdownMenuItem onClick={() => openEdit(cat)}>
                         Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem
@@ -256,7 +259,7 @@ export default function Categories() {
       )}
 
       <CategoryForm
-        key={editCategory?.id ?? "new"}
+        key={`${editCategory?.id ?? "new"}-${formNonce}`}
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditCategory(null); }}
         initial={editCategory ?? undefined}
