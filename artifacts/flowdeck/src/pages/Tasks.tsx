@@ -685,28 +685,6 @@ export default function Tasks() {
           )}
         </div>
 
-        {/* Sort dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5 text-sm">
-              Sort
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            {SORT_OPTIONS.map(opt => (
-              <DropdownMenuItem
-                key={`${opt.sortBy}:${opt.sortDir}`}
-                onClick={() => setF({ sortBy: opt.sortBy, sortDir: opt.sortDir })}
-                className="flex items-center justify-between"
-              >
-                {opt.label}
-                {activeSortLabel === opt.label && <Check className="w-3.5 h-3.5 text-primary ml-2" />}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
         {/* Filter toggle */}
         <div className="relative">
           <Button variant="outline" size="icon" onClick={() => setFiltersOpen(v => !v)}
