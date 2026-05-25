@@ -236,7 +236,6 @@ export default function GoalDetail() {
                 </p>
               ) : null}
             </div>
-            <span className="text-2xl font-bold text-primary">{pct}%</span>
           </div>
           {showCompleteCta && (
             <div className="flex items-center justify-between gap-3 mb-3 p-2.5 rounded-lg bg-primary/5 border border-primary/20">
