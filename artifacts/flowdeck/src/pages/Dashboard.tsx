@@ -5,7 +5,9 @@ import {
   useListTasks, useListGoals, useListHabits, useListFocusSessions,
   useListHabitLogs, useGetTodaysMood, useCreateMoodLog,
   useCompleteTask, useUpdateGoal, useGetWeeklyReview, useGetProductivityScore,
+  useLogHabit, useUpdateHabitLog, useDeleteHabitLog,
   getListTasksQueryKey, getListGoalsQueryKey, getGetTodaysMoodQueryKey,
+  getListHabitLogsQueryKey, getGetDashboardSummaryQueryKey,
 } from "@workspace/api-client-react";
 import type { Task, Goal } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -615,6 +617,172 @@ function WeeklySummary() {
   );
 }
 
+// ── Habits Today Panel ─────────────────────────────────────────────────────────
+type HabitLite = { id: number; name: string; color?: string | null; frequency: string };
+function HabitsTodayPanel({ habits, logsByHabitId, scheduled, today }: {
+  habits: HabitLite[];
+  logsByHabitId: Record<number, { id: number; status: string }>;
+  scheduled: HabitLite[];
+  today: string;
+}) {
+  const qc = useQueryClient();
+  const logHabit = useLogHabit();
+  const updateLog = useUpdateHabitLog();
+  const deleteLog = useDeleteHabitLog();
+
+  const handle = async (habitId: number, status: "done" | "skipped" | "missed") => {
+    const existing = logsByHabitId[habitId];
+    try {
+      if (existing) {
+        if (existing.status === status) {
+          await deleteLog.mutateAsync({ id: existing.id });
+        } else {
+          await updateLog.mutateAsync({ id: existing.id, data: { status } });
+        }
+      } else {
+        await logHabit.mutateAsync({ data: { habitId, logDate: today, status } });
+      }
+      qc.invalidateQueries({ queryKey: getListHabitLogsQueryKey() });
+      qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+    } catch {
+      toast.error("Failed to update habit");
+    }
+  };
+
+  const done = scheduled.filter(h => logsByHabitId[h.id]?.status === "done").length;
+  const total = scheduled.length;
+
+  return (
+    <Card className="border-border">
+      <CardHeader className="pb-2 pt-4 px-5">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Repeat className="w-4 h-4 text-primary" /> Habits today
+          </CardTitle>
+          <span className="text-xs text-muted-foreground">{done}/{total}</span>
+        </div>
+      </CardHeader>
+      <CardContent className="px-5 pb-4">
+        {total === 0 ? (
+          <div className="text-center py-8">
+            <Repeat className="w-8 h-8 text-muted mx-auto mb-2" />
+            <p className="text-xs text-muted-foreground mb-3">No habits scheduled today</p>
+            <Link href="/habits">
+              <Button variant="outline" size="sm" className="text-xs">Add a habit</Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[420px] overflow-y-auto">
+            {scheduled.map(h => {
+              const status = logsByHabitId[h.id]?.status;
+              return (
+                <div key={h.id} className="flex items-center gap-2 rounded-lg border border-border p-2">
+                  <div
+                    className="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+                    style={{ backgroundColor: `${h.color ?? "#14b8a6"}25`, color: h.color ?? "#14b8a6" }}
+                  >
+                    {h.name[0]?.toUpperCase() ?? "?"}
+                  </div>
+                  <p className={`flex-1 text-xs font-medium truncate ${status === "done" ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                    {h.name}
+                  </p>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => handle(h.id, "done")}
+                      title="Done"
+                      className={`w-6 h-6 rounded text-[11px] font-bold transition-colors ${status === "done" ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground"}`}
+                    >✓</button>
+                    <button
+                      onClick={() => handle(h.id, "skipped")}
+                      title="Skipped"
+                      className={`w-6 h-6 rounded text-[11px] font-bold transition-colors ${status === "skipped" ? "bg-amber-500 text-white" : "bg-amber-50 dark:bg-amber-900/20 text-amber-700 hover:bg-amber-500 hover:text-white"}`}
+                    >–</button>
+                    <button
+                      onClick={() => handle(h.id, "missed")}
+                      title="Missed"
+                      className={`w-6 h-6 rounded text-[11px] font-bold transition-colors ${status === "missed" ? "bg-red-500 text-white" : "bg-red-50 dark:bg-red-900/20 text-red-600 hover:bg-red-500 hover:text-white"}`}
+                    >✗</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Habit Trends Panel ─────────────────────────────────────────────────────────
+function HabitTrendsPanel({ habits, habitLogs }: {
+  habits: HabitLite[];
+  habitLogs: Array<{ habitId: number; logDate: string; status: string }> | undefined;
+}) {
+  const last7 = Array.from({ length: 7 }, (_, i) => format(subDays(new Date(), 6 - i), "yyyy-MM-dd"));
+  const logsByKey: Record<string, string> = {};
+  for (const l of habitLogs ?? []) logsByKey[`${l.habitId}:${l.logDate}`] = l.status;
+
+  return (
+    <Card className="border-border">
+      <CardHeader className="pb-2 pt-4 px-5">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-primary" /> Habit trends
+          </CardTitle>
+          <Link href="/habits">
+            <span className="text-xs text-primary hover:underline cursor-pointer">View all</span>
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="px-5 pb-4">
+        {habits.length === 0 ? (
+          <div className="text-center py-8">
+            <TrendingUp className="w-8 h-8 text-muted mx-auto mb-2" />
+            <p className="text-xs text-muted-foreground">No habits to track yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-[420px] overflow-y-auto">
+            {habits.slice(0, 8).map(h => {
+              let streak = 0;
+              for (let i = 0; i < 365; i++) {
+                const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+                if (logsByKey[`${h.id}:${d}`] === "done") streak++;
+                else break;
+              }
+              const doneDays = last7.filter(d => logsByKey[`${h.id}:${d}`] === "done").length;
+              const pct = Math.round((doneDays / 7) * 100);
+              return (
+                <div key={h.id}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: h.color ?? "#14b8a6" }} />
+                      <span className="text-xs font-medium text-foreground truncate">{h.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 text-[10px]">
+                      <span className="text-orange-500 font-semibold">🔥 {streak}</span>
+                      <span className="text-muted-foreground">{pct}%</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-0.5">
+                    {last7.map(d => {
+                      const s = logsByKey[`${h.id}:${d}`];
+                      const cls = s === "done" ? "bg-primary"
+                        : s === "skipped" ? "bg-amber-400"
+                        : s === "missed" ? "bg-red-400"
+                        : "bg-muted";
+                      return <div key={d} className={`flex-1 h-1.5 rounded-sm ${cls}`} />;
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { user } = useUser();
@@ -625,6 +793,7 @@ export default function Dashboard() {
   const { data: goals, isLoading: goalsLoading } = useListGoals();
   const { data: habits }         = useListHabits();
   const { data: habitLogs }      = useListHabitLogs({ date: today });
+  const { data: habitLogsAll }   = useListHabitLogs();
   const { data: focusSessions }  = useListFocusSessions();
   const { data: todayMood }      = useGetTodaysMood();
   const { data: score }          = useGetProductivityScore();
@@ -670,10 +839,22 @@ export default function Dashboard() {
     return map;
   }, [habitLogs]);
   const scheduledHabitsToday = (habits ?? []).filter(h => {
-    const dow = new Date().getDay();
+    const now = new Date();
+    const dow = now.getDay();
     switch (h.frequency) {
       case "daily": return true;
       case "weekdays": return dow >= 1 && dow <= 5;
+      case "weekly": return dow === 1; // Mondays
+      case "monthly": return now.getDate() === 1;
+      case "yearly": return now.getDate() === 1 && now.getMonth() === 0;
+      case "custom": {
+        if (!h.recurrenceConfig) return true;
+        try {
+          const cfg = JSON.parse(h.recurrenceConfig) as { daysOfWeek?: number[] };
+          if (cfg.daysOfWeek && cfg.daysOfWeek.length > 0) return cfg.daysOfWeek.includes(dow);
+        } catch {}
+        return true;
+      }
       default: return true;
     }
   });
@@ -802,62 +983,25 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Three-panel layout */}
+      {/* Three-panel layout: Habits today | Tasks today | Habit trends */}
       {(tasksLoading || goalsLoading) ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-80 rounded-xl" />)}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <HabitsTodayPanel habits={habits ?? []} logsByHabitId={logsByHabitId} scheduled={scheduledHabitsToday} today={today} />
           <TodoPanel tasks={tasks} range={dateRange} />
-          <GoalsDashPanel goals={goals} />
-          <UpcomingPanel tasks={tasks} goals={goals} />
+          <HabitTrendsPanel habits={habits ?? []} habitLogs={habitLogsAll} />
         </div>
       )}
 
-      {/* Conditional: Habit streaks */}
-      {hasHabits && habits && (
-        <Card className="border-border">
-          <CardHeader className="pb-2 pt-4 px-5">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Repeat className="w-4 h-4 text-primary" /> Habit Streaks
-              </CardTitle>
-              <Link href="/habits">
-                <span className="text-xs text-primary hover:underline cursor-pointer">View all</span>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent className="px-5 pb-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-              {habits.slice(0, 6).map(habit => (
-                <div
-                  key={habit.id}
-                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-colors ${
-                    logsByHabitId[habit.id]?.status === "done"
-                      ? "border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800/40"
-                      : logsByHabitId[habit.id]?.status === "skipped"
-                      ? "border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/40"
-                      : logsByHabitId[habit.id]?.status === "missed"
-                      ? "border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800/40"
-                      : "border-border bg-muted/20"
-                  }`}
-                >
-                  <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{ backgroundColor: `${habit.color ?? "#6366f1"}20`, color: habit.color ?? "#6366f1" }}
-                  >
-                    {habit.name[0]?.toUpperCase() ?? "?"}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-foreground truncate">{habit.name}</p>
-                    <p className="text-[10px] text-muted-foreground capitalize">{habit.frequency}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Goals + Upcoming row */}
+      {!(tasksLoading || goalsLoading) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <GoalsDashPanel goals={goals} />
+          <UpcomingPanel tasks={tasks} goals={goals} />
+        </div>
       )}
 
       {/* Conditional: Focus stats */}

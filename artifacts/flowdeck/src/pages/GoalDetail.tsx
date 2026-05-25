@@ -97,11 +97,12 @@ export default function GoalDetail() {
     return progress?.percent ?? 0;
   }, [tasks, linkedHabits, logsByKey, progress, goal]);
 
-  // Amber warning: any linked habit below 50% this week
+  // Amber warning: only when ALL linked habits are below 50% this week (true risk signal)
   const weakHabits = linkedHabits.filter(h => {
     const done = last7.filter(d => logsByKey[`${h.id}:${d}`]?.status === "done").length;
     return done / 7 < 0.5;
   });
+  const allHabitsWeak = linkedHabits.length > 0 && weakHabits.length === linkedHabits.length;
 
   const handleUpdateProgress = () => {
     const val = Number(currentValue);
@@ -172,14 +173,16 @@ export default function GoalDetail() {
         </div>
       </div>
 
-      {/* Amber warning for weak habits */}
-      {weakHabits.length > 0 && (
+      {/* Amber warning: only when ALL linked habits are failing — a real risk signal, not noise */}
+      {allHabitsWeak && (
         <div className="flex items-start gap-2.5 p-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700">
           <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Habit attention needed</p>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">This goal is at risk</p>
             <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-              {weakHabits.map(h => h.name).join(", ")} {weakHabits.length === 1 ? "is" : "are"} below 50% completion this week.
+              {linkedHabits.length === 1
+                ? `${linkedHabits[0]!.name} is below 50% completion this week.`
+                : `All ${linkedHabits.length} linked habits are below 50% completion this week.`}
             </p>
           </div>
         </div>

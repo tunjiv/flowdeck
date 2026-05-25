@@ -162,6 +162,8 @@ export default function Calendar() {
         ))}
       </div>
 
+      <div className={`grid gap-4 ${selectedDay ? "lg:grid-cols-[1fr_320px]" : "grid-cols-1"}`}>
+      <div>
       {/* Calendar grid */}
       <div className="grid grid-cols-7 gap-px bg-border rounded-xl overflow-hidden border border-border">
         {calDays.map(day => {
@@ -257,6 +259,85 @@ export default function Calendar() {
             </div>
           );
         })}
+      </div>
+      </div>
+
+      {/* Side panel: items on selected day */}
+      {selectedDay && (() => {
+        const key = format(selectedDay, "yyyy-MM-dd");
+        const dayTasks = tasksByDate[key] ?? [];
+        const dayHabits = habitsByDate[key] ?? [];
+        const isPastOrToday = !isFuture(selectedDay) || isToday(selectedDay);
+        return (
+          <aside className="rounded-xl border border-border bg-card p-4 h-fit sticky top-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">{format(selectedDay, "EEEE")}</h3>
+                <p className="text-xs text-muted-foreground">{format(selectedDay, "MMMM d, yyyy")}</p>
+              </div>
+              <button onClick={() => setSelectedDay(null)} className="p-1 rounded-md hover:bg-muted">
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+
+            {dayTasks.length === 0 && dayHabits.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-8">Nothing scheduled.</p>
+            ) : (
+              <div className="space-y-4">
+                {dayTasks.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                      Tasks · {dayTasks.length}
+                    </p>
+                    <div className="space-y-1.5">
+                      {dayTasks.map(t => (
+                        <div key={t.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs ${
+                          t.status === "completed" ? "bg-muted/40 text-muted-foreground line-through" : "bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-200"
+                        }`}>
+                          <CheckSquare className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{t.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {dayHabits.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                      Habits · {dayHabits.length}
+                    </p>
+                    <div className="space-y-1.5">
+                      {dayHabits.map(h => {
+                        const log = logsByHabitDate[`${h.id}:${key}`];
+                        const s = log?.status as LogStatus | undefined;
+                        const chip = s ? STATUS_COLORS[s] : "bg-muted text-muted-foreground border border-dashed border-border";
+                        return (
+                          <button
+                            key={h.id}
+                            onClick={() => isPastOrToday && setAckHabit({
+                              habitId: h.id, name: h.name, date: key, logId: log?.id, currentStatus: s,
+                            })}
+                            disabled={!isPastOrToday}
+                            className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${chip} ${isPastOrToday ? "cursor-pointer hover:opacity-80" : "cursor-default opacity-70"}`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Repeat className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">{h.name}</span>
+                            </div>
+                            <span className="capitalize text-[10px] font-semibold flex-shrink-0">
+                              {s ?? (isPastOrToday ? "log" : "—")}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </aside>
+        );
+      })()}
       </div>
 
       {/* Acknowledgment panel */}

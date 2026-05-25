@@ -10,6 +10,7 @@ import {
   useUpdateHabitLog,
   useDeleteHabitLog,
   useListCategories,
+  useListGoals,
   getListHabitsQueryKey,
   getListHabitLogsQueryKey,
   getGetDashboardSummaryQueryKey,
@@ -74,14 +75,14 @@ function freqLabel(frequency: string, recurrenceConfig?: string | null): string 
   }
 }
 
-function isScheduledToday(frequency: string, recurrenceConfig?: string | null): boolean {
-  const dow = new Date().getDay();
+function isScheduledOn(frequency: string, recurrenceConfig: string | null | undefined, date: Date): boolean {
+  const dow = date.getDay();
   switch (frequency) {
     case "daily": return true;
     case "weekdays": return dow >= 1 && dow <= 5;
-    case "weekly": return true;
-    case "monthly": return true;
-    case "yearly": return true;
+    case "weekly": return dow === 1; // Mondays
+    case "monthly": return date.getDate() === 1;
+    case "yearly": return date.getDate() === 1 && date.getMonth() === 0;
     case "custom": {
       if (!recurrenceConfig) return true;
       try {
@@ -92,6 +93,10 @@ function isScheduledToday(frequency: string, recurrenceConfig?: string | null): 
     }
     default: return true;
   }
+}
+
+function isScheduledToday(frequency: string, recurrenceConfig?: string | null): boolean {
+  return isScheduledOn(frequency, recurrenceConfig, new Date());
 }
 
 interface RecurrenceConfig {
@@ -212,6 +217,7 @@ function HabitForm({ open, onClose, initial }: {
 }) {
   const qc = useQueryClient();
   const { data: categories } = useListCategories();
+  const { data: goals } = useListGoals();
   const create = useCreateHabit();
   const update = useUpdateHabit();
 
@@ -229,6 +235,7 @@ function HabitForm({ open, onClose, initial }: {
   const [categoryId, setCategoryId] = useState(String(initial?.categoryId ?? ""));
   const [motivationNote, setMotivationNote] = useState(initial?.motivationNote ?? "");
   const [graceDays, setGraceDays] = useState(String(initial?.graceDaysPerWeek ?? "0"));
+  const [goalId, setGoalId] = useState(String(initial?.goalId ?? ""));
 
   const handleSubmit = () => {
     if (!name.trim()) { toast.error("Name is required"); return; }
@@ -239,6 +246,7 @@ function HabitForm({ open, onClose, initial }: {
       recurrenceConfig,
       color,
       categoryId: categoryId ? Number(categoryId) : undefined,
+      goalId: goalId ? Number(goalId) : undefined,
       motivationNote: motivationNote.trim() || undefined,
       graceDaysPerWeek: Number(graceDays),
     };
@@ -287,15 +295,29 @@ function HabitForm({ open, onClose, initial }: {
             </div>
           </div>
 
-          <div>
-            <Label>Category</Label>
-            <Select value={categoryId || "none"} onValueChange={v => setCategoryId(v === "none" ? "" : v)}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {categories?.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Category</Label>
+              <Select value={categoryId || "none"} onValueChange={v => setCategoryId(v === "none" ? "" : v)}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {categories?.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Linked goal</Label>
+              <Select value={goalId || "none"} onValueChange={v => setGoalId(v === "none" ? "" : v)}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {goals?.filter(g => g.status === "active").map(g => (
+                    <SelectItem key={g.id} value={String(g.id)}>{g.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div>
@@ -329,31 +351,193 @@ function HabitForm({ open, onClose, initial }: {
 }
 
 function SevenDotStrip({ habitId, logs }: { habitId: number; logs: Record<string, { id: number; status: string }> }) {
+  // Show 3 past + today + 3 future, so future days appear distinctly gray
   const days = Array.from({ length: 7 }, (_, i) => {
-    const d = subDays(new Date(), 6 - i);
+    const d = subDays(new Date(), 3 - i);
     const key = format(d, "yyyy-MM-dd");
     const entry = logs[`${habitId}:${key}`];
-    const isTodayDay = i === 6;
-    const isFutureDay = false;
+    const isTodayDay = i === 3;
+    const isFutureDay = i > 3;
     return { key, label: format(d, "EEEEE"), entry, isTodayDay, isFutureDay };
   });
 
   return (
     <div className="flex gap-1">
-      {days.map(({ key, label, entry, isTodayDay }) => {
+      {days.map(({ key, label, entry, isTodayDay, isFutureDay }) => {
         const s = entry?.status;
-        let color = "bg-muted";
+        let dot = "border border-dashed border-border bg-transparent";
         let title = "No log";
-        if (s === "done") { color = "bg-primary"; title = "Done"; }
-        else if (s === "skipped") { color = "bg-amber-400"; title = "Skipped"; }
-        else if (s === "missed") { color = "bg-red-400"; title = "Missed"; }
+        if (isFutureDay) {
+          dot = "bg-muted/40 border border-border/50";
+          title = "Upcoming";
+        } else if (s === "done") { dot = "bg-primary border border-primary"; title = "Done"; }
+        else if (s === "skipped") { dot = "bg-amber-400 border border-amber-400"; title = "Skipped"; }
+        else if (s === "missed") { dot = "bg-red-400 border border-red-400"; title = "Missed"; }
         return (
           <div key={key} className="flex flex-col items-center gap-0.5" title={title}>
-            <div className={`w-2.5 h-2.5 rounded-full ${color} ${isTodayDay ? "ring-1 ring-foreground/30" : ""}`} />
-            <span className="text-[9px] text-muted-foreground">{label}</span>
+            <div className={`w-2.5 h-2.5 rounded-full ${dot} ${isTodayDay ? "ring-2 ring-foreground/40 ring-offset-1" : ""}`} />
+            <span className={`text-[9px] ${isFutureDay ? "text-muted-foreground/50" : "text-muted-foreground"}`}>{label}</span>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function HabitHeatmap({ habits, logsByKey }: {
+  habits: Array<{ id: number; name: string; color?: string | null }>;
+  logsByKey: Record<string, { id: number; status: string }>;
+}) {
+  const [selectedId, setSelectedId] = useState<number | null>(habits[0]?.id ?? null);
+  if (!habits.length) return null;
+  const habit = habits.find(h => h.id === selectedId) ?? habits[0]!;
+  // 28 days: 4 rows x 7 cols, oldest top-left, newest (today) bottom-right
+  const days = Array.from({ length: 28 }, (_, i) => {
+    const d = subDays(new Date(), 27 - i);
+    return { key: format(d, "yyyy-MM-dd"), date: d };
+  });
+  const baseColor = habit.color ?? "hsl(189, 88%, 28%)";
+
+  return (
+    <Card className="border-border">
+      <CardHeader className="pb-2 pt-4 px-5">
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <BarChart2 className="w-4 h-4 text-primary" />
+            28-day heatmap
+          </CardTitle>
+          <Select value={String(habit.id)} onValueChange={v => setSelectedId(Number(v))}>
+            <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {habits.map(h => (
+                <SelectItem key={h.id} value={String(h.id)}>{h.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent className="px-5 pb-4">
+        <div className="grid grid-cols-7 gap-1">
+          {days.map(({ key, date }) => {
+            const entry = logsByKey[`${habit.id}:${key}`];
+            const s = entry?.status;
+            let bg = "bg-muted/40";
+            let title = `${format(date, "MMM d")} — no log`;
+            if (s === "done") { bg = ""; title = `${format(date, "MMM d")} — done`; }
+            else if (s === "skipped") { bg = "bg-amber-400"; title = `${format(date, "MMM d")} — skipped`; }
+            else if (s === "missed") { bg = "bg-red-400"; title = `${format(date, "MMM d")} — missed`; }
+            const isTodayCell = format(new Date(), "yyyy-MM-dd") === key;
+            return (
+              <div
+                key={key}
+                title={title}
+                className={`aspect-square rounded-sm ${bg} ${isTodayCell ? "ring-1 ring-foreground/50" : ""}`}
+                style={s === "done" ? { backgroundColor: baseColor } : undefined}
+              />
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between mt-3 text-[10px] text-muted-foreground">
+          <span>{format(days[0]!.date, "MMM d")}</span>
+          <div className="flex items-center gap-2">
+            <span>Less</span>
+            <div className="w-2.5 h-2.5 rounded-sm bg-muted/40" />
+            <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: baseColor, opacity: 0.4 }} />
+            <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: baseColor }} />
+            <span>More</span>
+          </div>
+          <span>Today</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CatchUpBatch({ habitName, catchUpDays, onLog, onAfter }: {
+  habitId: number;
+  habitName: string;
+  catchUpDays: string[];
+  onLog: (date: string, status: HabitStatus) => Promise<unknown>;
+  onAfter: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+
+  const toggleDay = (d: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d); else next.add(d);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelected(new Set(catchUpDays));
+  const clearAll = () => setSelected(new Set());
+  const weekdaysOnly = () => {
+    const next = new Set<string>();
+    for (const d of catchUpDays) {
+      const dow = parseISO(d).getDay();
+      if (dow >= 1 && dow <= 5) next.add(d);
+    }
+    setSelected(next);
+  };
+
+  const applyBatch = async () => {
+    if (selected.size === 0) { toast.error("Select at least one day"); return; }
+    setBusy(true);
+    try {
+      for (const d of catchUpDays) {
+        const status: HabitStatus = selected.has(d) ? "done" : "skipped";
+        await onLog(d, status);
+      }
+      toast.success(`${habitName}: ${selected.size} done, ${catchUpDays.length - selected.size} skipped`);
+      setSelected(new Set());
+      onAfter();
+    } catch {
+      toast.error("Batch update failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-2.5 mb-1 space-y-2">
+      {/* Day chips for selection */}
+      <div className="flex flex-wrap gap-1">
+        {catchUpDays.map(d => {
+          const isSel = selected.has(d);
+          return (
+            <button
+              key={d}
+              type="button"
+              onClick={() => toggleDay(d)}
+              className={`px-2 py-1 rounded text-[10px] font-semibold transition-colors ${
+                isSel
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background border border-border text-muted-foreground hover:border-primary"
+              }`}
+            >
+              {format(parseISO(d), "EEE d")}
+            </button>
+          );
+        })}
+      </div>
+      {/* Quick-select */}
+      <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+        <button type="button" onClick={selectAll} className="px-1.5 py-0.5 rounded bg-background border border-border hover:border-primary">Select all</button>
+        <button type="button" onClick={clearAll} className="px-1.5 py-0.5 rounded bg-background border border-border hover:border-primary">Clear</button>
+        <button type="button" onClick={weekdaysOnly} className="px-1.5 py-0.5 rounded bg-background border border-border hover:border-primary">Weekdays only</button>
+        <span className="text-muted-foreground ml-auto">{selected.size} selected</span>
+      </div>
+      {/* Apply */}
+      <button
+        type="button"
+        onClick={applyBatch}
+        disabled={busy || selected.size === 0}
+        className="w-full py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Mark selected as done & skip the rest
+      </button>
     </div>
   );
 }
@@ -495,8 +679,11 @@ export default function Habits() {
                   ? "border-red-400/40 bg-red-50 dark:bg-red-900/10"
                   : "border-border bg-card";
 
-                // Past catch-up days (last 7 excluding today, with no log, scheduled)
-                const catchUpDays = last7Dates.slice(0, 6).filter(d => !logsByKey[`${habit.id}:${d}`]);
+                // Past catch-up days (last 7 excluding today, scheduled on that day, no log yet)
+                const catchUpDays = last7Dates.slice(0, 6).filter(d =>
+                  !logsByKey[`${habit.id}:${d}`] &&
+                  isScheduledOn(habit.frequency, habit.recurrenceConfig, parseISO(d))
+                );
 
                 return (
                   <div
@@ -630,7 +817,18 @@ export default function Habits() {
                             <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wide mb-1.5">
                               CATCH UP — {catchUpDays.length} unlogged day{catchUpDays.length > 1 ? "s" : ""}
                             </p>
-                            <div className="space-y-1">
+                            <CatchUpBatch
+                              habitId={habit.id}
+                              habitName={habit.name}
+                              catchUpDays={catchUpDays}
+                              onLog={async (date, status) => {
+                                await logHabit.mutateAsync({ data: { habitId: habit.id, logDate: date, status } });
+                              }}
+                              onAfter={() => {
+                                qc.invalidateQueries({ queryKey: getListHabitLogsQueryKey() });
+                              }}
+                            />
+                            <div className="space-y-1 mt-2">
                               {catchUpDays.map(d => (
                                 <div key={d} className="flex items-center gap-2">
                                   <span className="text-xs text-muted-foreground w-20">{format(parseISO(d), "EEE, MMM d")}</span>
@@ -731,6 +929,9 @@ export default function Habits() {
               )}
             </CardContent>
           </Card>
+
+          {/* 28-day heatmap */}
+          <HabitHeatmap habits={habits ?? []} logsByKey={logsByKey} />
 
           {/* Best streaks */}
           <Card className="border-border">

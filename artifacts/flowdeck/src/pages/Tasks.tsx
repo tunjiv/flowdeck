@@ -315,7 +315,7 @@ function TaskForm({ open, onClose, initial }: {
   initial?: {
     id: number; title: string; notes?: string | null; priority: string;
     dueDate?: string | null; estimatedMinutes?: number | null;
-    goalId?: number | null; categoryId?: number | null; recurrence?: string | null;
+    goalId?: number | null; categoryId?: number | null;
   };
 }) {
   const qc = useQueryClient();
@@ -331,7 +331,6 @@ function TaskForm({ open, onClose, initial }: {
   const [estimated, setEstimated] = useState(String(initial?.estimatedMinutes ?? ""));
   const [goalId, setGoalId] = useState(String(initial?.goalId ?? ""));
   const [categoryId, setCategoryId] = useState(String(initial?.categoryId ?? ""));
-  const [recurrence, setRecurrence] = useState(initial?.recurrence ?? "none");
 
   const handleSubmit = () => {
     if (!title.trim()) { toast.error("Title is required"); return; }
@@ -343,7 +342,6 @@ function TaskForm({ open, onClose, initial }: {
       estimatedMinutes: estimated ? Number(estimated) : undefined,
       goalId: goalId ? Number(goalId) : undefined,
       categoryId: categoryId ? Number(categoryId) : undefined,
-      recurrence: recurrence !== "none" ? recurrence : undefined,
     };
     if (initial) {
       update.mutate({ id: initial.id, data: payload }, {
@@ -413,23 +411,9 @@ function TaskForm({ open, onClose, initial }: {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="estimated">Estimated (min)</Label>
-              <Input id="estimated" type="number" value={estimated} onChange={e => setEstimated(e.target.value)} className="mt-1" placeholder="25" />
-            </div>
-            <div>
-              <Label>Recurrence</Label>
-              <Select value={recurrence} onValueChange={setRecurrence}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <Label htmlFor="estimated">Estimated (min)</Label>
+            <Input id="estimated" type="number" value={estimated} onChange={e => setEstimated(e.target.value)} className="mt-1" placeholder="25" />
           </div>
         </div>
         <DialogFooter>
