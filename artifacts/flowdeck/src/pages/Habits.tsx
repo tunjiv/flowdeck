@@ -954,6 +954,7 @@ export default function Habits() {
       )}
 
       <HabitForm
+        key={editHabit?.id ?? "new"}
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditHabit(null); }}
         initial={editHabit ?? undefined}
