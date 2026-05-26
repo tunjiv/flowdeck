@@ -623,7 +623,8 @@ export default function Habits() {
     });
   };
 
-  const scheduledToday = (habits ?? []).filter(h => isScheduledToday(h.frequency, h.recurrenceConfig));
+  const hasStarted = (h: { startDate?: string | null }) => !h.startDate || h.startDate <= today;
+  const scheduledToday = (habits ?? []).filter(h => hasStarted(h) && isScheduledToday(h.frequency, h.recurrenceConfig));
   const doneToday = scheduledToday.filter(h => todayLogsByHabit[h.id]?.status === "done").length;
   const skippedToday = scheduledToday.filter(h => todayLogsByHabit[h.id]?.status === "skipped").length;
 
@@ -690,7 +691,7 @@ export default function Habits() {
               {habits.map(habit => {
                 const todayLog = todayLogsByHabit[habit.id];
                 const expanded = expandedId === habit.id;
-                const scheduled = isScheduledToday(habit.frequency, habit.recurrenceConfig);
+                const scheduled = hasStarted(habit) && isScheduledToday(habit.frequency, habit.recurrenceConfig);
                 const statusColor = todayLog?.status === "done"
                   ? "border-primary/40 bg-primary/5"
                   : todayLog?.status === "skipped"
