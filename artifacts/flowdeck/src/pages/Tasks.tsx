@@ -113,7 +113,6 @@ type TaskFilters = {
   search: string;
   statuses: string[];
   priorities: string[];
-  goalId: string;
   tagIds: number[];
   dateMode: "none" | "range" | "exact";
   dateStart: string;
@@ -127,7 +126,6 @@ const DEFAULT_FILTERS: TaskFilters = {
   search: "",
   statuses: ["all"],
   priorities: ["all"],
-  goalId: "",
   tagIds: [],
   dateMode: "none",
   dateStart: "",
@@ -342,20 +340,27 @@ function TaskForm({ open, onClose, initial }: {
   initial?: {
     id: number; title: string; notes?: string | null; priority: string;
     dueDate?: string | null; estimatedMinutes?: number | null;
-    goalId?: number | null;
   };
 }) {
   const qc = useQueryClient();
-  const { data: goals } = useListGoals();
   const create = useCreateTask();
   const update = useUpdateTask();
+  const createSubtask = useCreateSubtask();
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [priority, setPriority] = useState(initial?.priority ?? "normal");
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
-  const [estimated, setEstimated] = useState(String(initial?.estimatedMinutes ?? ""));
-  const [goalId, setGoalId] = useState(String(initial?.goalId ?? ""));
+  const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [newSubtask, setNewSubtask] = useState("");
+
+  const addSubtask = () => {
+    const t = newSubtask.trim();
+    if (!t) return;
+    setSubtasks(prev => [...prev, t]);
+    setNewSubtask("");
+  };
+  const removeSubtask = (i: number) => setSubtasks(prev => prev.filter((_, idx) => idx !== i));
 
   const handleSubmit = () => {
     if (!title.trim()) { toast.error("Title is required"); return; }
@@ -364,8 +369,6 @@ function TaskForm({ open, onClose, initial }: {
       notes: notes.trim() || undefined,
       priority: priority as "urgent" | "high" | "normal" | "low",
       dueDate: dueDate || undefined,
-      estimatedMinutes: estimated ? Number(estimated) : undefined,
-      goalId: goalId ? Number(goalId) : undefined,
     };
     if (initial) {
       update.mutate({ id: initial.id, data: payload }, {
@@ -374,7 +377,21 @@ function TaskForm({ open, onClose, initial }: {
       });
     } else {
       create.mutate({ data: payload }, {
-        onSuccess: () => { qc.invalidateQueries({ queryKey: getListTasksQueryKey() }); toast.success("Task created"); onClose(); },
+        onSuccess: async (created) => {
+          const newId = (created as { id?: number } | undefined)?.id;
+          if (newId && subtasks.length > 0) {
+            try {
+              await Promise.all(subtasks.map(t =>
+                createSubtask.mutateAsync({ taskId: newId, data: { title: t } })
+              ));
+            } catch {
+              toast.error("Task created, but some subtasks failed");
+            }
+          }
+          qc.invalidateQueries({ queryKey: getListTasksQueryKey() });
+          toast.success("Task created");
+          onClose();
+        },
         onError: () => toast.error("Failed to create task"),
       });
     }
@@ -411,20 +428,35 @@ function TaskForm({ open, onClose, initial }: {
               <Input id="due-date" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="mt-1" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {!initial && (
             <div>
-              <Label>Goal</Label>
-              <Select value={goalId || "none"} onValueChange={v => setGoalId(v === "none" ? "" : v)}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {goals?.filter(g => g.status === "active").map(g => (
-                    <SelectItem key={g.id} value={String(g.id)}>{g.title}</SelectItem>
+              <Label>Subtasks</Label>
+              {subtasks.length > 0 && (
+                <div className="mt-1.5 space-y-1">
+                  {subtasks.map((t, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm bg-muted/40 rounded px-2 py-1">
+                      <span className="flex-1">{t}</span>
+                      <button type="button" onClick={() => removeSubtask(i)}
+                        className="text-muted-foreground hover:text-destructive">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
+              <div className="flex items-center gap-2 mt-1.5">
+                <Input
+                  value={newSubtask}
+                  onChange={e => setNewSubtask(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSubtask(); } }}
+                  placeholder="Add a subtask..."
+                />
+                <Button type="button" variant="outline" size="sm" onClick={addSubtask} disabled={!newSubtask.trim()}>
+                  Add
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -486,7 +518,6 @@ export default function Tasks() {
         if (!match) return false;
       }
       if (!f.priorities.includes("all") && !f.priorities.includes(t.priority)) return false;
-      if (f.goalId && String(t.goalId ?? "") !== f.goalId) return false;
       if (f.tagIds.length > 0) {
         const taskTagIds = taskTagMap.get(t.id) ?? [];
         if (!f.tagIds.some(tid => taskTagIds.includes(tid))) return false;
@@ -539,13 +570,12 @@ export default function Tasks() {
 
   const isFiltered =
     filters.search !== "" || !filters.statuses.includes("all") ||
-    !filters.priorities.includes("all") || filters.goalId !== "" ||
+    !filters.priorities.includes("all") ||
     filters.tagIds.length > 0 || filters.dateMode !== "none";
 
   const activeFilterCount = [
     !filters.statuses.includes("all"),
     !filters.priorities.includes("all"),
-    filters.goalId !== "",
     filters.tagIds.length > 0,
     filters.dateMode !== "none",
   ].filter(Boolean).length;
@@ -769,22 +799,8 @@ export default function Tasks() {
             </div>
           )}
 
-          {/* Goal + Date row */}
+          {/* Date row */}
           <div className="flex flex-wrap gap-2 items-center">
-            {allGoals.length > 0 && (
-              <Select value={filters.goalId || "all"} onValueChange={v => setF({ goalId: v === "all" ? "" : v })}>
-                <SelectTrigger className="h-8 text-xs w-[170px]">
-                  <SelectValue placeholder="All goals" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All goals</SelectItem>
-                  {allGoals.map(g => (
-                    <SelectItem key={g.id} value={String(g.id)}>{g.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
             <Select value={filters.dateMode} onValueChange={v => setF({ dateMode: v as TaskFilters["dateMode"] })}>
               <SelectTrigger className="h-8 text-xs w-[140px]"><SelectValue /></SelectTrigger>
               <SelectContent>
