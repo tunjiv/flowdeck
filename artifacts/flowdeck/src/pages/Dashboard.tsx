@@ -59,8 +59,13 @@ const GOAL_PRIORITY_COLORS: { [key: string]: string } = {
 const OVERDUE_DISMISS_KEY = "flowdeck_overdue_dismissed";
 
 // ── Date helpers ───────────────────────────────────────────────────────────────
-function todayStr(): string { return new Date().toISOString().split("T")[0]!; }
-function dateToStr(d: Date): string { return d.toISOString().split("T")[0]!; }
+function dateToStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function todayStr(): string { return dateToStr(new Date()); }
 
 function getPresets(): { [name: string]: { from?: Date; to?: Date } } {
   const now = new Date();
