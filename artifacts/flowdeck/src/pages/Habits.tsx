@@ -298,9 +298,9 @@ function HabitForm({ open, onClose, initial, presetGoalId }: {
             <Label>Linked goal</Label>
             <Select value={goalId || "none"} onValueChange={v => setGoalId(v === "none" ? "" : v)}>
               <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[260px] overflow-y-auto">
                 <SelectItem value="none">None</SelectItem>
-                {goals?.filter(g => g.status === "active").map(g => (
+                {goals?.filter(g => g.status === "active" || g.status === "not_started").map(g => (
                   <SelectItem key={g.id} value={String(g.id)}>{g.title}</SelectItem>
                 ))}
               </SelectContent>
