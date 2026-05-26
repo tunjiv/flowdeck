@@ -399,8 +399,8 @@ export default function Goals() {
 
   useGoalMilestoneTracker(goals);
 
-  const today = new Date().toISOString().split("T")[0];
-  const thisWeekEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const today = dateToStr(new Date());
+  const thisWeekEnd = dateToStr(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
 
   const categoriesById = useMemo(() => {
     const map = new Map<number, Category>();

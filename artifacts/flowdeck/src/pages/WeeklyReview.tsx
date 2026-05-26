@@ -146,7 +146,7 @@ function PendingTasksPanel({ weekEnd }: { weekEnd: string }) {
   const qc = useQueryClient();
   const { data: tasks } = useListTasks();
   const completeTask = useCompleteTask();
-  const today = new Date().toISOString().split("T")[0]!;
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
   const [completedIds, setCompletedIds] = useState<Set<number>>(new Set());
 
   const handleComplete = (id: number) => {
@@ -247,6 +247,7 @@ function PendingTasksPanel({ weekEnd }: { weekEnd: string }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function WeeklyReview() {
   const { data, isLoading } = useGetWeeklyReview();
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
 
   const focusData = useMemo(
     () => data?.days.map(d => ({ day: d.day, minutes: d.focusMinutes })) ?? [],
@@ -524,7 +525,7 @@ export default function WeeklyReview() {
               <tbody>
                 {data.days.map((d) => {
                   const habitPct = d.habitsTotal > 0 ? Math.round((d.habitsCompleted / d.habitsTotal) * 100) : null;
-                  const isToday = d.date === new Date().toISOString().split("T")[0];
+                  const isToday = d.date === today;
                   return (
                     <tr
                       key={d.date}

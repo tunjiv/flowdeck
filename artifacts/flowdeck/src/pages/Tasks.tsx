@@ -456,7 +456,7 @@ export default function Tasks() {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [filters, setFilters] = useLocalStorage<TaskFilters>("tasks_filters_v3", DEFAULT_FILTERS);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
 
   const isTaskOverdue = (t: { status: string; dueDate?: string | null }) =>
     !!(t.dueDate && t.dueDate < today && t.status !== "completed" && t.status !== "archived");
