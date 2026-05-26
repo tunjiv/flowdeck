@@ -9,6 +9,7 @@
 export type GoalStatus = (typeof GoalStatus)[keyof typeof GoalStatus];
 
 export const GoalStatus = {
+  not_started: "not_started",
   active: "active",
   paused: "paused",
   completed: "completed",

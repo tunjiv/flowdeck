@@ -183,7 +183,7 @@ function GoalForm({
       // (preserve existing goalType on update so old quantitative/habit goals keep working).
       goalType: (initial?.goalType ?? "milestone") as "quantitative" | "milestone" | "habit",
       priority: priority as "high" | "medium" | "low",
-      status: status as "active" | "completed" | "paused" | "archived",
+      status: status as "not_started" | "active" | "completed" | "paused" | "archived",
       startDate: startDate || undefined,
       targetEndDate: targetEndDate || undefined,
       // Send explicit null when uncategorising so the server clears it,
@@ -245,6 +245,7 @@ function GoalForm({
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="not_started">Not started</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="paused">Paused</SelectItem>
@@ -585,6 +586,7 @@ export default function Goals() {
             <div className="flex flex-wrap gap-1.5">
               {[
                 { value: "all", label: "All" },
+                { value: "not_started", label: "Not started" },
                 { value: "active", label: "Active" },
                 { value: "completed", label: "Completed" },
                 { value: "paused", label: "Paused" },

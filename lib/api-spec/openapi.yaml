@@ -1156,7 +1156,7 @@ components:
           enum: [quantitative, habit, milestone]
         status:
           type: string
-          enum: [active, paused, completed, archived]
+          enum: [not_started, active, paused, completed, archived]
         priority:
           type: string
           enum: [high, medium, low]
@@ -1215,7 +1215,7 @@ components:
           type: ["integer", "null"]
         status:
           type: string
-          enum: [active, paused, completed, archived]
+          enum: [not_started, active, paused, completed, archived]
         priority:
           type: string
           enum: [high, medium, low]
