@@ -846,6 +846,7 @@ export default function Dashboard() {
     return map;
   }, [habitLogs]);
   const scheduledHabitsToday = (habits ?? []).filter(h => {
+    if (h.startDate && h.startDate > today) return false;
     const now = new Date();
     const dow = now.getDay();
     switch (h.frequency) {
