@@ -389,6 +389,7 @@ export default function Goals() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editGoal, setEditGoal] = useState<typeof goals extends Array<infer T> ? T : any | null>(null);
+  const [formNonce, setFormNonce] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [filters, setFilters] = useLocalStorage<GoalFilters>("goals_filters_v3", DEFAULT_FILTERS);
@@ -519,7 +520,7 @@ export default function Goals() {
     overdue,
     category: goal.categoryId != null ? categoriesById.get(goal.categoryId) : undefined,
     onToggleComplete: () => handleToggleComplete(goal),
-    onEdit: () => { setEditGoal(goal); setFormOpen(true); },
+    onEdit: () => { setEditGoal(goal); setFormNonce(n => n + 1); setFormOpen(true); },
     onDelete: () => handleDelete(goal.id),
     isPending: updateGoal.isPending,
   });
@@ -534,7 +535,7 @@ export default function Goals() {
           <h1 className="text-2xl font-bold text-foreground">Goals</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Track progress toward your biggest ambitions</p>
         </div>
-        <Button onClick={() => { setEditGoal(null); setFormOpen(true); }} data-testid="create-goal">
+        <Button onClick={() => { setEditGoal(null); setFormNonce(n => n + 1); setFormOpen(true); }} data-testid="create-goal">
           <Plus className="w-4 h-4 mr-1.5" /> New goal
         </Button>
       </div>
@@ -715,7 +716,7 @@ export default function Goals() {
       )}
 
       <GoalForm
-        key={editGoal?.id ?? "new"}
+        key={`${editGoal?.id ?? "new"}-${formNonce}`}
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditGoal(null); }}
         initial={editGoal ?? undefined}

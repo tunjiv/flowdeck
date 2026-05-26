@@ -450,6 +450,7 @@ export default function Tasks() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editTask, setEditTask] = useState<any>(null);
+  const [formNonce, setFormNonce] = useState(0);
   const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
@@ -640,7 +641,7 @@ export default function Tasks() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={() => { setEditTask(task); setFormOpen(true); }}>Edit</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setEditTask(task); setFormNonce(n => n + 1); setFormOpen(true); }}>Edit</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDelete(task.id)}>
                 <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
@@ -663,7 +664,7 @@ export default function Tasks() {
           <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Your daily to-do list</p>
         </div>
-        <Button onClick={() => { setEditTask(null); setFormOpen(true); }} data-testid="create-task">
+        <Button onClick={() => { setEditTask(null); setFormNonce(n => n + 1); setFormOpen(true); }} data-testid="create-task">
           <Plus className="w-4 h-4 mr-1.5" /> New task
         </Button>
       </div>
@@ -887,7 +888,7 @@ export default function Tasks() {
 
       {/* key prop ensures form re-initializes correctly when switching between edit targets */}
       <TaskForm
-        key={editTask?.id ?? "new"}
+        key={`${editTask?.id ?? "new"}-${formNonce}`}
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditTask(null); }}
         initial={editTask ?? undefined}
