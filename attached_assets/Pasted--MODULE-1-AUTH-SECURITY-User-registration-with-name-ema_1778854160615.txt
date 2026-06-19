@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ## MODULE 1 — AUTH & SECURITY
 
 - User registration with name, email, and password (bcrypt hashed, never stored in plain text)
@@ -185,4 +186,193 @@ A dedicated Settings > Notifications page where users configure everything:
 - Offline support: service worker caches today's tasks + habits; syncs when connection restores
 - Accessibility: WCAG 2.1 AA — proper ARIA labels, keyboard navigation, sufficient contrast
 
+=======
+## MODULE 1 — AUTH & SECURITY
+
+- User registration with name, email, and password (bcrypt hashed, never stored in plain text)
+- Email verification on sign-up
+- Login with JWT access tokens (short-lived, 15 min) + refresh tokens (7 days, stored in httpOnly cookies)
+- Two-factor authentication (2FA) via a TOTP authenticator app (Google Authenticator, Authy). Use the `speakeasy` and `qrcode` npm packages. Show a QR code during setup and require 6-digit code on every login after enabling.
+- "Remember this device for 30 days" option after 2FA
+- Forgot password + reset via email link (time-limited token, 1 hr)
+- Session management page: see all active sessions, revoke individual sessions or all others
+- Rate limiting on auth endpoints (max 5 failed attempts → 15 min lockout)
+- Account settings: change email, change password, delete account (with confirmation)
+
+---
+
+## MODULE 2 — GOALS & CATEGORIES
+
+- Users can create custom Categories (e.g. Health, Career, Finance, Mindfulness). Each category has: name, icon (pick from a curated icon set), color, and optional description.
+- Inside categories, users create Goals. Each goal has: title, description, category, start date, target end date (optional), status (active/paused/completed/archived), and a goal type:
+  • Quantitative goal: target a number (e.g. "Run 100 km", "Read 12 books") — track progress by logging entries
+  • Habit goal: mark as done on a recurring schedule (daily, weekdays, X days per week, weekly, monthly)
+  • Milestone goal: a checklist of sub-milestones to complete in order
+- Goals have a progress bar calculated from logged data
+- Completing a goal triggers a celebration animation and archives linked to-do items (see Module 3)
+- Pausing a goal pauses all linked recurring to-do tasks
+- Goals can have a priority level (High / Medium / Low) and optional notes/journal entries attached
+
+---
+
+## MODULE 3 — DAILY CHECKLISTS & TO-DO SYSTEM
+
+- Users can create standalone to-do items OR to-do items linked to a specific goal
+- Linking to a goal is optional; linked items contribute to goal progress
+- Each to-do item has: title, notes, due date/time, priority (urgent/high/normal/low), recurrence rule, linked goal (optional), estimated time (optional), and tags
+- Recurrence options: one-time, daily, specific weekdays, every N days, weekly, bi-weekly, monthly, custom (RRULE-style)
+- When a linked goal is marked complete, all its linked recurring to-dos are auto-stopped (not deleted — archived and visible in history)
+- Daily view: shows today's checklist sorted by priority. Overdue items are flagged.
+- Drag-and-drop reordering within the daily list
+- Bulk actions: check all, delete, reschedule
+- Subtasks: each to-do can have up to 10 nested subtasks
+- Quick-add bar at the top of every view — natural language parsing for due dates (e.g. "Meditate tomorrow at 8am" auto-fills fields)
+- Time blocking: optionally assign a time block to a to-do (integrates with the calendar view)
+
+---
+
+## MODULE 4 — HABIT TRACKER
+
+- Dedicated habit tracker separate from the to-do list, for simple yes/no or quantitative daily habits
+- Each habit has: name, category, frequency, target value (for quantitative), icon, color, and an optional "why" motivational note shown during check-in
+- Visual streak counter per habit (current streak + longest streak)
+- Habit heatmap calendar (GitHub-style, 12 months)  
+- Weekly and monthly completion rate per habit
+- If a habit is linked to a goal, its completions count toward goal progress
+- "Habit stacking" feature: group habits into a morning/evening routine stack that checks off in sequence
+
+---
+
+## MODULE 5 — INTERACTIVE DASHBOARD
+
+The main home screen. Sections (user can reorder/hide each):
+
+1. **Today's snapshot** — daily to-do checklist, completion ring, weather-style motivational message
+2. **Active goals** — progress bars for top 5 active goals, sorted by due date
+3. **Habit streaks** — streak cards for all active habits
+4. **Focus timer** — built-in Pomodoro timer (25/5 or custom intervals), logs sessions against a task
+5. **Productivity score** — a daily score (0–100) calculated from: tasks completed vs planned, habit completion rate, goal progress
+6. **Weekly overview** — bar chart of tasks completed per day this week
+7. **Upcoming** — next 7 days of scheduled tasks and recurring items
+8. **Quick add** — floating action button for fast task/habit/goal creation
+9. **Mood check-in** — optional daily mood log (emoji scale 1–5) with notes; shown in monthly reports
+10. **AI insight card** — one AI-generated insight per day about patterns in the user's data (e.g. "You complete 80% more tasks on Tuesdays — consider scheduling your hardest work then")
+
+---
+
+## MODULE 6 — REPORTS & "WRAPPED" ENGINE
+
+### End-of-day report (triggered at user's set time or on demand)
+- Tasks completed vs planned
+- Habits hit/missed
+- Pomodoro sessions logged
+- Mood for the day
+- One encouraging sentence
+
+### Weekly report (emailed Monday morning)
+- Week in review: completion rates, streaks, best day
+- Goals progressed this week
+- Top 3 completed tasks
+- Upcoming week preview
+
+### Monthly report — "FlowDeck Monthly Wrapped"
+Styled like Spotify Wrapped — full-screen story slides:
+- Slide 1: Total tasks completed this month vs last month
+- Slide 2: Longest habit streak achieved
+- Slide 3: Most productive day of the week + time of day
+- Slide 4: Goal spotlight — closest to completion
+- Slide 5: Mood trend chart
+- Slide 6: Your "productivity personality" for the month (e.g. "The Night Owl Closer", "The Streak Machine") — derived from behavioral data
+- Slide 7: Highlight reel — top 3 milestones hit
+- Share card: PNG export of a summary shareable to social media
+
+### Yearly report ("Year in Flow")
+- All monthly stats aggregated
+- Year-over-year comparison if prior data exists
+- Top goals achieved
+- Total Pomodoro hours logged
+- Most improved habit
+- Animated shareable card
+
+---
+
+## MODULE 7 — COMMUNICATIONS & NOTIFICATION PREFERENCES
+
+A dedicated Settings > Notifications page where users configure everything:
+
+### Email notifications (use Nodemailer or SendGrid)
+- Daily to-do digest: time picker (e.g. 7:00 AM)
+- End-of-day summary: time picker
+- Weekly report: toggle on/off, day/time picker
+- Monthly Wrapped: toggle on/off
+- Yearly report: toggle on/off
+- Goal completion celebration email: toggle
+- Streak milestone emails (7, 30, 100 days): toggle
+
+### Push notifications (use Web Push API / service workers for web; Expo push for mobile)
+- Reminder for specific to-do items: user sets time on each task
+- Habit reminder: per-habit reminder time
+- Daily digest reminder: configurable time
+- Pomodoro session start/end chimes: toggle
+- Streak at-risk alert (e.g. "You haven't logged your habit today and it's 8 PM"): toggle + time
+
+### In-app notifications
+- Notification bell in header with unread count
+- Notification center: list of recent alerts, mark all read, clear all
+
+### Do Not Disturb
+- DND schedule (e.g. 10 PM–7 AM) — suppress all push notifications during this window
+- Weekend DND option
+
+---
+
+## MODULE 8 — CALENDAR VIEW
+
+- Month, week, and day views
+- To-do items with due dates appear on calendar
+- Recurring items shown on each occurrence
+- Drag-and-drop to reschedule
+- Color-coded by category
+- "Agenda" mode: scrollable list of all upcoming items
+
+---
+
+## MODULE 9 — FOCUS MODE & POMODORO TIMER
+
+- Full-screen focus mode: hides all distractions, shows only the current task and timer
+- Timer modes: Pomodoro (25/5), 52/17, or fully custom work/break intervals
+- Sound options: white noise, lo-fi beats (links to YouTube embed), or silent
+- Session log: date, task worked on, duration — used in reports
+- Weekly Pomodoro goal (e.g. "20 sessions/week") with progress ring
+
+---
+
+## MODULE 10 — TAGS & ADVANCED FILTERING
+
+- Tags on all items (goals, tasks, habits) — user-defined, color-coded
+- Global search bar: full-text search across all content
+- Filter panel: filter by category, tag, priority, date range, status, linked goal
+- Saved filters (e.g. "Work tasks due this week")
+
+---
+
+## MODULE 11 — DATA & PRIVACY
+
+- Full data export: JSON and CSV of all user data (GDPR compliant)
+- Import: bulk import tasks from CSV
+- Data retention settings: auto-delete completed tasks older than X months
+- Account deletion: wipe all data within 30 days
+
+---
+
+## MODULE 12 — ONBOARDING & UX POLISH
+
+- Guided onboarding flow (5 steps): set name/avatar, pick goal categories of interest, create first goal, set notification preferences, take a 60-second tour
+- Empty states: every empty list has an illustration + CTA to create the first item
+- Dark mode / light mode toggle (persists to account)
+- Keyboard shortcuts (desktop): `N` for new task, `G` for goals, `H` for habits, `/` for search, `T` for today
+- Offline support: service worker caches today's tasks + habits; syncs when connection restores
+- Accessibility: WCAG 2.1 AA — proper ARIA labels, keyboard navigation, sufficient contrast
+
+>>>>>>> e7920ae (Add Vercel deployment config)
 ---

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habit UX — Calendar for older unlogged days</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;background:#f5f5f3;padding:32px;color:#1a1a1a;font-size:14px}
+h1{font-size:13px;font-weight:500;color:#888;margin-bottom:20px}
+.habit-card{background:#fff;border:0.5px solid rgba(0,0,0,0.12);border-radius:12px;margin-bottom:12px;max-width:680px}
+.habit-header{display:flex;align-items:center;gap:10px;padding:12px 14px}
+.habit-avatar{width:32px;height:32px;border-radius:50%;background:#e6f1fb;color:#185fa5;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500}
+.habit-meta{flex:1}
+.habit-name{font-size:14px;font-weight:500}
+.habit-freq{font-size:12px;color:#777}
+.badge-unlogged{font-size:11px;padding:3px 8px;border-radius:20px;background:#faeeda;color:#854f0b;font-weight:500}
+.body{border-top:0.5px solid rgba(0,0,0,0.09);padding:14px}
+.section-label{font-size:11px;font-weight:500;color:#aaa;letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
+.week-row{display:flex;justify-content:space-between;margin-bottom:16px}
+.day-col{display:flex;flex-direction:column;align-items:center;gap:5px;flex:1}
+.day-label{font-size:11px;color:#aaa;font-weight:500}
+.day-circle{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px}
+.dc-done{background:#1d9e75;color:#fff}
+.dc-missed{background:#fcebeb;border:0.5px solid #f09595;color:#a32d2d}
+.dc-skipped{background:#f0f0ee;border:0.5px solid #ddd;color:#aaa}
+.dc-unlogged{border:1.5px dashed #fac775;color:#ba7517;background:transparent}
+.dc-empty{background:#f0f0ee;color:#ddd}
+.divider{border-top:0.5px solid rgba(0,0,0,0.09);margin:14px 0}
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cal-title-group{}
+.older-count{font-size:12px;color:#ba7517;font-weight:500;margin-top:2px}
+.cal-nav-group{display:flex;gap:6px;align-items:center}
+.cal-nav{background:transparent;border:0.5px solid rgba(0,0,0,0.15);border-radius:8px;padding:4px 10px;cursor:pointer;color:#555;font-size:12px}
+.cal-month{font-size:12px;font-weight:500;color:#333;padding:4px 8px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:14px}
+.cal-dow{font-size:10px;font-weight:500;color:#aaa;text-align:center;padding:2px 0}
+.cal-cell{aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px}
+.cc-done{background:#1d9e75;color:#fff}
+.cc-missed{background:#fcebeb;color:#a32d2d;border:0.5px solid #f09595}
+.cc-skipped{background:#f0f0ee;color:#777;border:0.5px solid #ddd}
+.cc-unlogged{border:1.5px dashed #fac775;color:#ba7517;cursor:pointer}
+.cc-today{box-shadow:0 0 0 2px #1d9e75}
+.cc-future{color:#ccc}
+.cc-notscheduled{color:#e0e0e0}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#777}
+.leg-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.hint{font-size:11px;color:#888;text-align:center;background:#f8f8f6;border-radius:8px;padding:8px}
+.annotation-box{background:#e1f5ee;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#085041}
+</style>
+</head>
+<body>
+<h1>FlowDeck / Habits — UX redesign · mockup 2 of 2 · older unlogged days</h1>
+
+<div class="habit-card">
+  <div class="habit-header">
+    <div class="habit-avatar">C</div>
+    <div class="habit-meta">
+      <div class="habit-name">Course</div>
+      <div class="habit-freq">Mon–Fri</div>
+    </div>
+    <span class="badge-unlogged">18 unlogged</span>
+  </div>
+
+  <div class="body">
+    <div class="section-label">Last 7 days</div>
+    <div class="week-row">
+      <div class="day-col"><div class="day-label">F</div><div class="day-circle dc-unlogged">⏱</div></div>
+      <div class="day-col"><div class="day-label">S</div><div class="day-circle dc-empty">—</div></div>
+      <div class="day-col"><div class="day-label">S</div><div class="day-circle dc-empty">—</div></div>
+      <div class="day-col"><div class="day-label">M</div><div class="day-circle dc-done">✓</div></div>
+      <div class="day-col"><div class="day-label">T</div><div class="day-circle dc-missed">✕</div></div>
+      <div class="day-col"><div class="day-label">W</div><div class="day-circle dc-skipped">—</div></div>
+      <div class="day-col"><div class="day-label">T</div><div class="day-circle dc-done">✓</div></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="annotation-box">💡 Older unlogged days are shown in a month calendar below. Amber dashed = unlogged scheduled day. Click any to log it. Navigate between months with the arrows.</div>
+
+    <div class="cal-header">
+      <div class="cal-title-group">
+        <div class="section-label" style="margin-bottom:2px">Older unlogged days</div>
+        <div class="older-count">14 unlogged before Jun 12</div>
+      </div>
+      <div class="cal-nav-group">
+        <button class="cal-nav">← Prev</button>
+        <span class="cal-month">May 2026</span>
+        <button class="cal-nav">Next →</button>
+      </div>
+    </div>
+
+    <div class="cal-grid">
+      <div class="cal-dow">M</div><div class="cal-dow">T</div><div class="cal-dow">W</div><div class="cal-dow">T</div><div class="cal-dow">F</div><div class="cal-dow">S</div><div class="cal-dow">S</div>
+      <!-- Week 1 - May starts on Friday -->
+      <div class="cal-cell"></div><div class="cal-cell"></div><div class="cal-cell"></div><div class="cal-cell"></div>
+      <div class="cal-cell cc-unlogged">1</div><div class="cal-cell cc-notscheduled">2</div><div class="cal-cell cc-notscheduled">3</div>
+      <!-- Week 2 -->
+      <div class="cal-cell cc-done">4</div><div class="cal-cell cc-missed">5</div><div class="cal-cell cc-done">6</div><div class="cal-cell cc-skipped">7</div><div class="cal-cell cc-done">8</div><div class="cal-cell cc-notscheduled">9</div><div class="cal-cell cc-notscheduled">10</div>
+      <!-- Week 3 -->
+      <div class="cal-cell cc-unlogged">11</div><div class="cal-cell cc-done">12</div><div class="cal-cell cc-unlogged">13</div><div class="cal-cell cc-done">14</div><div class="cal-cell cc-missed">15</div><div class="cal-cell cc-notscheduled">16</div><div class="cal-cell cc-notscheduled">17</div>
+      <!-- Week 4 -->
+      <div class="cal-cell cc-done">18</div><div class="cal-cell cc-unlogged">19</div><div class="cal-cell cc-skipped">20</div><div class="cal-cell cc-unlogged">21</div><div class="cal-cell cc-done">22</div><div class="cal-cell cc-notscheduled">23</div><div class="cal-cell cc-notscheduled">24</div>
+      <!-- Week 5 -->
+      <div class="cal-cell cc-unlogged">25</div><div class="cal-cell cc-done">26</div><div class="cal-cell cc-unlogged">27</div><div class="cal-cell cc-done">28</div><div class="cal-cell cc-unlogged">29</div><div class="cal-cell cc-notscheduled">30</div><div class="cal-cell cc-notscheduled">31</div>
+    </div>
+
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#1d9e75"></div>Done</div>
+      <div class="leg-item"><div class="leg-dot" style="border:1.5px dashed #fac775;background:transparent"></div>Unlogged — click to log</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#fcebeb;border:0.5px solid #f09595"></div>Missed</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#f0f0ee;border:0.5px solid #ddd"></div>Skipped</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#f0f0ee"></div>Not scheduled</div>
+    </div>
+
+    <div class="hint">Click any amber dashed cell to log that day · Mon–Fri only · Weekend days are non-interactive</div>
+  </div>
+</div>
+</body>
+</html>

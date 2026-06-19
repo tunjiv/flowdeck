@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habit UX — Interactive day circles & simplified catch-up</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;background:#f5f5f3;padding:32px;color:#1a1a1a;font-size:14px}
+h1{font-size:13px;font-weight:500;color:#888;margin-bottom:20px}
+.habit-card{background:#fff;border:0.5px solid rgba(0,0,0,0.12);border-radius:12px;margin-bottom:12px;overflow:visible;max-width:680px}
+.habit-header{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer}
+.habit-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0}
+.habit-meta{flex:1}
+.habit-name{font-size:14px;font-weight:500}
+.habit-freq{font-size:12px;color:#777}
+.badge{font-size:11px;padding:3px 8px;border-radius:20px;font-weight:500}
+.badge-done{background:#e1f5ee;color:#0f6e56}
+.badge-unlogged{background:#faeeda;color:#854f0b;cursor:pointer}
+.body{border-top:0.5px solid rgba(0,0,0,0.09);padding:14px}
+.section-label{font-size:11px;font-weight:500;color:#aaa;letter-spacing:.04em;margin-bottom:10px;text-transform:uppercase}
+.today-row{display:flex;gap:8px;margin-bottom:18px}
+.log-btn{flex:1;padding:9px 0;border-radius:8px;border:0.5px solid rgba(0,0,0,0.15);background:transparent;font-size:13px;font-weight:500;cursor:pointer;color:#666}
+.log-btn.active-done{background:#e1f5ee;color:#0f6e56;border-color:#5dcaa5}
+.week-row{display:flex;justify-content:space-between;margin-bottom:6px}
+.day-col{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1}
+.day-label{font-size:11px;color:#aaa;font-weight:500}
+.day-circle{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px}
+.dc-done{background:#1d9e75;color:#fff}
+.dc-unlogged{border:1.5px dashed #fac775;color:#ba7517;background:#faeeda}
+.dc-empty{background:#f0f0ee;color:#ccc}
+.dc-skipped{background:#f0f0ee;border:0.5px solid #ddd;color:#aaa}
+.hint{font-size:11px;color:#aaa;margin-bottom:16px;background:#faeeda;border-radius:8px;padding:8px 12px;color:#854f0b}
+.divider{border-top:0.5px solid rgba(0,0,0,0.09);margin:14px 0}
+.catchup-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.catchup-title{font-size:11px;font-weight:500;color:#ba7517;letter-spacing:.04em;text-transform:uppercase}
+.skip-all{font-size:12px;color:#aaa;text-decoration:underline}
+.catchup-row{display:flex;align-items:center;padding:8px 0;border-bottom:0.5px solid rgba(0,0,0,0.07)}
+.catchup-row:last-child{border-bottom:none}
+.catchup-date{font-size:13px;color:#555;flex:1}
+.catchup-actions{display:flex;gap:6px}
+.ca-btn{padding:5px 12px;border-radius:20px;border:0.5px solid rgba(0,0,0,0.12);background:transparent;font-size:12px;font-weight:500;cursor:pointer;color:#555}
+.popover-note{font-size:11px;color:#888;text-align:center;margin-top:14px;background:#f8f8f6;border-radius:8px;padding:8px}
+.annotation-box{background:#e1f5ee;border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:#085041}
+.collapsed .body{display:none}
+</style>
+</head>
+<body>
+<h1>FlowDeck / Habits — UX redesign · mockup 1 of 2</h1>
+
+<div class="habit-card collapsed">
+  <div class="habit-header">
+    <div class="habit-avatar" style="background:#e1f5ee;color:#0f6e56">M</div>
+    <div class="habit-meta">
+      <div class="habit-name">Morning Run</div>
+      <div class="habit-freq">Every week on Mon, Wed, Fri</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="badge badge-done">Done today</span>
+      <span style="color:#aaa;font-size:18px">›</span>
+    </div>
+  </div>
+</div>
+
+<div class="habit-card">
+  <div class="habit-header">
+    <div class="habit-avatar" style="background:#e6f1fb;color:#185fa5">C</div>
+    <div class="habit-meta">
+      <div class="habit-name">Course</div>
+      <div class="habit-freq">Mon–Fri</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="badge badge-unlogged">4 unlogged ↓</span>
+      <span style="color:#aaa;font-size:18px">›</span>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="section-label">Today — Jun 18</div>
+    <div class="today-row">
+      <button class="log-btn active-done">✓ Done</button>
+      <button class="log-btn">— Skipped</button>
+      <button class="log-btn">✕ Missed</button>
+    </div>
+
+    <div class="section-label">Last 7 days</div>
+    <div class="annotation-box">💡 Dashed amber circles = unlogged past days. Click to log inline — no scrolling needed.</div>
+    <div class="week-row">
+      <div class="day-col"><div class="day-label">F</div><div class="day-circle dc-unlogged" title="Jun 12 — click to log">⏱</div></div>
+      <div class="day-col"><div class="day-label">S</div><div class="day-circle dc-empty">—</div></div>
+      <div class="day-col"><div class="day-label">S</div><div class="day-circle dc-empty">—</div></div>
+      <div class="day-col"><div class="day-label">M</div><div class="day-circle dc-unlogged" title="Jun 15 — click to log">⏱</div></div>
+      <div class="day-col"><div class="day-label">T</div><div class="day-circle dc-unlogged" title="Jun 16 — click to log">⏱</div></div>
+      <div class="day-col"><div class="day-label">W</div><div class="day-circle dc-unlogged" title="Jun 17 — click to log">⏱</div></div>
+      <div class="day-col"><div class="day-label">T</div><div class="day-circle dc-done" title="Jun 18 — Done">✓</div></div>
+    </div>
+    <div style="margin-top:10px;margin-bottom:6px;font-size:11px;color:#aaa;text-align:center">Clicking an amber circle opens a Done / Skipped / Missed popover inline</div>
+
+    <div class="divider"></div>
+
+    <div class="catchup-header">
+      <span class="catchup-title">Catch up — 4 unlogged days</span>
+      <span class="skip-all">Skip all unlogged</span>
+    </div>
+
+    <div class="catchup-row">
+      <span class="catchup-date">Fri, Jun 12</span>
+      <div class="catchup-actions">
+        <button class="ca-btn" style="color:#0f6e56">Done</button>
+        <button class="ca-btn">Skipped</button>
+        <button class="ca-btn" style="color:#a32d2d">Missed</button>
+      </div>
+    </div>
+    <div class="catchup-row">
+      <span class="catchup-date">Mon, Jun 15</span>
+      <div class="catchup-actions">
+        <button class="ca-btn" style="color:#0f6e56">Done</button>
+        <button class="ca-btn">Skipped</button>
+        <button class="ca-btn" style="color:#a32d2d">Missed</button>
+      </div>
+    </div>
+    <div class="catchup-row">
+      <span class="catchup-date">Tue, Jun 16</span>
+      <div class="catchup-actions">
+        <button class="ca-btn" style="color:#0f6e56">Done</button>
+        <button class="ca-btn">Skipped</button>
+        <button class="ca-btn" style="color:#a32d2d">Missed</button>
+      </div>
+    </div>
+    <div class="catchup-row">
+      <span class="catchup-date">Wed, Jun 17</span>
+      <div class="catchup-actions">
+        <button class="ca-btn" style="color:#0f6e56">Done</button>
+        <button class="ca-btn">Skipped</button>
+        <button class="ca-btn" style="color:#a32d2d">Missed</button>
+      </div>
+    </div>
+
+    <div class="popover-note">Removed: date chip row · Select all/Clear/Weekdays only batch controls · "Mark selected as done & skip the rest" button</div>
+  </div>
+</div>
+
+<div class="habit-card collapsed">
+  <div class="habit-header">
+    <div class="habit-avatar" style="background:#faeeda;color:#854f0b">C</div>
+    <div class="habit-meta">
+      <div class="habit-name">CTV News</div>
+      <div class="habit-freq">Mon–Fri</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="badge badge-unlogged">4 unlogged ↓</span>
+      <span style="color:#aaa;font-size:18px">›</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
