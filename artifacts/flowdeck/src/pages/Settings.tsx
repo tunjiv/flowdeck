@@ -1,4 +1,4 @@
-import { useUser, useClerk, useSession } from "@clerk/react";
+import { useUser, useClerk, useSession, useReverification } from "@clerk/react";
 import { useState, useEffect } from "react";
 import { LogOut, User, Bell, Palette, Info, Shield, Monitor, Smartphone, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,11 @@ function maskIp(ip?: string): string {
 // Active sessions / devices via Clerk (KAN-2).
 function ActiveSessions() {
   const { user } = useUser();
+  const { signOut } = useClerk();
   const { session: current } = useSession();
+  // Revoking a session is a protected action — useReverification handles Clerk's
+  // step-up auth prompt when required, then retries.
+  const revokeAction = useReverification((s: ClerkSession) => s.revoke());
   const [sessions, setSessions] = useState<ClerkSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,16 +58,23 @@ function ActiveSessions() {
 
   useEffect(() => { void load(); }, [user?.id]);
 
+  const errMsg = (e: any, fallback: string) =>
+    e?.errors?.[0]?.longMessage || e?.errors?.[0]?.message || e?.message || fallback;
+
   const revokeOne = async (s: ClerkSession, isCurrent: boolean) => {
-    if (isCurrent && !window.confirm("This will log you out immediately. Continue?")) return;
+    // The current session can't be revoked via the API — it's a sign-out.
+    if (isCurrent) {
+      if (!window.confirm("This will log you out immediately. Continue?")) return;
+      await signOut({ redirectUrl: "/" });
+      return;
+    }
     setBusy(s.id);
     try {
-      await s.revoke();
-      if (isCurrent) { window.location.href = "/"; return; }
+      await revokeAction(s);
       await load();
       toast.success("Session revoked");
-    } catch {
-      toast.error("Couldn't revoke session");
+    } catch (e) {
+      toast.error(errMsg(e, "Couldn't revoke session"));
     } finally {
       setBusy(null);
     }
@@ -74,11 +85,11 @@ function ActiveSessions() {
     if (others.length === 0) return;
     setBusy("others");
     try {
-      await Promise.all(others.map(s => s.revoke()));
+      for (const s of others) await revokeAction(s);
       await load();
       toast.success(`Signed out ${others.length} other device${others.length > 1 ? "s" : ""}`);
-    } catch {
-      toast.error("Couldn't revoke sessions");
+    } catch (e) {
+      toast.error(errMsg(e, "Couldn't revoke sessions"));
     } finally {
       setBusy(null);
     }
