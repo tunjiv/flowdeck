@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "noEmitOnError": false,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "customConditions": ["workspace"]
+  }
+}

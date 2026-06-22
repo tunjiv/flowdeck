@@ -75,8 +75,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.4",
-    "@supabase/auth-ui-react": "^0.4.7",
-    "@supabase/auth-ui-shared": "^0.1.8"
+    "@clerk/react": "npm:@clerk/clerk-react@5.61.3",
+    "@clerk/themes": "2.4.62"
   }
 }

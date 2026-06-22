@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { useAuthContext } from "@/App";
-import { supabase } from "@/lib/supabase";
+import { useUser, useClerk } from "@clerk/react";
 import {
   LayoutDashboard, Target, CheckSquare, Repeat, Tag, Timer, Settings,
   Menu, LogOut, Moon, Sun, PanelLeftClose,
@@ -63,7 +62,8 @@ function useSidebarOpen() {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { user } = useAuthContext();
+  const { user } = useUser();
+  const { signOut } = useClerk();
   const { open, toggle: toggleSidebar, setOpen } = useSidebarOpen();
   const { dark, toggle: toggleDark } = useDarkMode();
   const [isMobile, setIsMobile] = useState(false);
@@ -85,9 +85,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [isMobile, setOpen]);
 
-  const fullName = user?.user_metadata?.full_name as string | undefined;
-  const email = user?.email ?? "";
-  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+  const fullName = user?.fullName ?? undefined;
+  const email = user?.primaryEmailAddress?.emailAddress ?? "";
+  const avatarUrl = user?.imageUrl;
   const initials = fullName
     ? fullName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
     : email[0]?.toUpperCase() ?? "U";
@@ -169,7 +169,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {dark ? "Light mode" : "Dark mode"}
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => supabase.auth.signOut()}
+              onClick={() => signOut()}
               data-testid="sign-out"
               className="text-destructive focus:text-destructive"
             >
