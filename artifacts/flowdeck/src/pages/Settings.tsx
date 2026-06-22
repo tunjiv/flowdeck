@@ -172,40 +172,32 @@ function ActiveSessions() {
 
 // In-app TOTP enrollment via Clerk's user API (KAN-16). Self-contained so it
 // doesn't depend on Clerk's profile modal rendering the MFA section.
-function TwoFactorSetup({ open, onClose, onEnabled }: { open: boolean; onClose: () => void; onEnabled: () => void }) {
+function TwoFactorSetup({ open, onClose, totp, onEnabled }: {
+  open: boolean;
+  onClose: () => void;
+  totp: { uri: string; secret: string } | null;
+  onEnabled: () => void;
+}) {
   const { user } = useUser();
-  const [step, setStep] = useState<"loading" | "scan" | "backup">("loading");
-  const [uri, setUri] = useState("");
-  const [secret, setSecret] = useState("");
+  const verifyCode = useReverification((c: string) => (user as any).verifyTOTP({ code: c }));
+  const makeBackupCodes = useReverification(() => (user as any).createBackupCode());
+  const [step, setStep] = useState<"scan" | "backup">("scan");
   const [code, setCode] = useState("");
   const [codes, setCodes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!open || !user) return;
-    setStep("loading"); setCode(""); setError(""); setCodes([]);
-    (async () => {
-      try {
-        const totp = await (user as any).createTOTP();
-        setUri(totp?.uri ?? "");
-        setSecret(totp?.secret ?? "");
-        setStep("scan");
-      } catch (e: any) {
-        setError(e?.errors?.[0]?.longMessage || e?.message ||
-          "Couldn't start setup. Make sure Authenticator app (TOTP) is enabled in your Clerk dashboard.");
-        setStep("scan");
-      }
-    })();
-  }, [open, user]);
+    if (open) { setStep("scan"); setCode(""); setCodes([]); setError(""); }
+  }, [open]);
 
   const verify = async () => {
     if (code.trim().length < 6) { setError("Enter the 6-digit code from your app"); return; }
     setBusy(true); setError("");
     try {
-      await (user as any).verifyTOTP({ code: code.trim() });
+      await verifyCode(code.trim());
       let bc: string[] = [];
-      try { const r = await (user as any).createBackupCode(); bc = r?.codes ?? []; } catch { /* backup codes optional */ }
+      try { const r: any = await makeBackupCodes(); bc = r?.codes ?? []; } catch { /* backup codes optional */ }
       setCodes(bc);
       setStep("backup");
       try { await (user as any).reload?.(); } catch { /* ignore */ }
@@ -222,33 +214,27 @@ function TwoFactorSetup({ open, onClose, onEnabled }: { open: boolean; onClose: 
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Two-factor authentication</DialogTitle></DialogHeader>
 
-        {step === "loading" && <p className="text-sm text-muted-foreground py-8 text-center">Preparing setup…</p>}
-
         {step === "scan" && (
           <div className="space-y-3 py-1">
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            {uri && (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Scan this with your authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code.
-                </p>
-                <div className="flex justify-center"><div className="bg-white p-3 rounded-lg"><QRCodeSVG value={uri} size={168} /></div></div>
-                {secret && (
-                  <p className="text-xs text-center text-muted-foreground">
-                    Or enter this key manually:<br />
-                    <code className="text-foreground break-all">{secret}</code>
-                  </p>
-                )}
-                <Input
-                  value={code}
-                  onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="123456"
-                  inputMode="numeric"
-                  className="text-center tracking-[0.4em] text-lg"
-                  data-testid="totp-code"
-                />
-              </>
+            <p className="text-sm text-muted-foreground">
+              Scan this with your authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code.
+            </p>
+            {totp?.uri && <div className="flex justify-center"><div className="bg-white p-3 rounded-lg"><QRCodeSVG value={totp.uri} size={168} /></div></div>}
+            {totp?.secret && (
+              <p className="text-xs text-center text-muted-foreground">
+                Or enter this key manually:<br />
+                <code className="text-foreground break-all">{totp.secret}</code>
+              </p>
             )}
+            <Input
+              value={code}
+              onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              inputMode="numeric"
+              className="text-center tracking-[0.4em] text-lg"
+              data-testid="totp-code"
+            />
+            {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
         )}
 
@@ -272,7 +258,7 @@ function TwoFactorSetup({ open, onClose, onEnabled }: { open: boolean; onClose: 
           {step === "scan" && (
             <>
               <Button variant="outline" onClick={onClose}>Cancel</Button>
-              <Button onClick={verify} disabled={busy || !uri}>{busy ? "Verifying…" : "Verify & enable"}</Button>
+              <Button onClick={verify} disabled={busy || !totp?.uri}>{busy ? "Verifying…" : "Verify & enable"}</Button>
             </>
           )}
           {step === "backup" && <Button onClick={onClose}>Done</Button>}
@@ -286,6 +272,23 @@ export default function Settings() {
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
   const [twoFAOpen, setTwoFAOpen] = useState(false);
+  const [totpData, setTotpData] = useState<{ uri: string; secret: string } | null>(null);
+  // createTOTP is a protected action — run it through reverification first, then
+  // open the QR dialog with the result (avoids stacked modals fighting for focus).
+  const startTotp = useReverification(() => (user as any).createTOTP());
+
+  const handleSetup2FA = async () => {
+    try {
+      const totp: any = await startTotp();
+      setTotpData({ uri: totp?.uri ?? "", secret: totp?.secret ?? "" });
+      setTwoFAOpen(true);
+    } catch (e: any) {
+      toast.error(
+        e?.errors?.[0]?.longMessage || e?.message ||
+        "Couldn't start 2FA setup. Ensure Authenticator app (TOTP) is enabled in your Clerk dashboard.",
+      );
+    }
+  };
 
   const initials = user?.firstName
     ? `${user.firstName[0]}${user.lastName?.[0] ?? ""}`.toUpperCase()
@@ -367,7 +370,7 @@ export default function Settings() {
                 variant="outline"
                 size="sm"
                 data-testid="manage-2fa"
-                onClick={() => (user?.twoFactorEnabled ? openUserProfile() : setTwoFAOpen(true))}
+                onClick={() => (user?.twoFactorEnabled ? openUserProfile() : handleSetup2FA())}
               >
                 {user?.twoFactorEnabled ? "Manage" : "Set up"}
               </Button>
@@ -460,7 +463,12 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      <TwoFactorSetup open={twoFAOpen} onClose={() => setTwoFAOpen(false)} onEnabled={() => { /* badge updates via user.reload */ }} />
+      <TwoFactorSetup
+        open={twoFAOpen}
+        totp={totpData}
+        onClose={() => { setTwoFAOpen(false); setTotpData(null); }}
+        onEnabled={() => { /* badge updates via user.reload */ }}
+      />
     </div>
   );
 }
