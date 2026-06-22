@@ -923,10 +923,10 @@ export default function Habits() {
                               const isToday = key === today;
                               const scheduledDay = isScheduledOn(habit.frequency, habit.recurrenceConfig, d);
                               const beforeStart = !!habit.startDate && key < habit.startDate;
-                              const kind: CircleKind = scheduledDay && !beforeStart ? "unlogged" : "not-scheduled";
+                              const kind: CircleKind = (scheduledDay || isToday) && !beforeStart ? "unlogged" : "not-scheduled";
                               const { cls, glyph } = circleVisual(kind, entry?.status);
-                              // Today is handled by the Done/Skipped/Missed button row above.
-                              const interactive = scheduledDay && !beforeStart && !isToday;
+                              // Past scheduled days and today are interactive; any logged day stays editable.
+                              const interactive = !beforeStart && (scheduledDay || isToday || !!entry);
                               const circle = (
                                 <button
                                   type="button"
