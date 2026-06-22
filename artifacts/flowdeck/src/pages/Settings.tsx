@@ -6,8 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+import { QRCodeSVG } from "qrcode.react";
 
 type ClerkSession = {
   id: string;
@@ -167,9 +170,122 @@ function ActiveSessions() {
   );
 }
 
+// In-app TOTP enrollment via Clerk's user API (KAN-16). Self-contained so it
+// doesn't depend on Clerk's profile modal rendering the MFA section.
+function TwoFactorSetup({ open, onClose, onEnabled }: { open: boolean; onClose: () => void; onEnabled: () => void }) {
+  const { user } = useUser();
+  const [step, setStep] = useState<"loading" | "scan" | "backup">("loading");
+  const [uri, setUri] = useState("");
+  const [secret, setSecret] = useState("");
+  const [code, setCode] = useState("");
+  const [codes, setCodes] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open || !user) return;
+    setStep("loading"); setCode(""); setError(""); setCodes([]);
+    (async () => {
+      try {
+        const totp = await (user as any).createTOTP();
+        setUri(totp?.uri ?? "");
+        setSecret(totp?.secret ?? "");
+        setStep("scan");
+      } catch (e: any) {
+        setError(e?.errors?.[0]?.longMessage || e?.message ||
+          "Couldn't start setup. Make sure Authenticator app (TOTP) is enabled in your Clerk dashboard.");
+        setStep("scan");
+      }
+    })();
+  }, [open, user]);
+
+  const verify = async () => {
+    if (code.trim().length < 6) { setError("Enter the 6-digit code from your app"); return; }
+    setBusy(true); setError("");
+    try {
+      await (user as any).verifyTOTP({ code: code.trim() });
+      let bc: string[] = [];
+      try { const r = await (user as any).createBackupCode(); bc = r?.codes ?? []; } catch { /* backup codes optional */ }
+      setCodes(bc);
+      setStep("backup");
+      try { await (user as any).reload?.(); } catch { /* ignore */ }
+      onEnabled();
+    } catch (e: any) {
+      setError(e?.errors?.[0]?.longMessage || e?.message || "That code didn't match — try the latest one.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Two-factor authentication</DialogTitle></DialogHeader>
+
+        {step === "loading" && <p className="text-sm text-muted-foreground py-8 text-center">Preparing setup…</p>}
+
+        {step === "scan" && (
+          <div className="space-y-3 py-1">
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            {uri && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Scan this with your authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code.
+                </p>
+                <div className="flex justify-center"><div className="bg-white p-3 rounded-lg"><QRCodeSVG value={uri} size={168} /></div></div>
+                {secret && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    Or enter this key manually:<br />
+                    <code className="text-foreground break-all">{secret}</code>
+                  </p>
+                )}
+                <Input
+                  value={code}
+                  onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="123456"
+                  inputMode="numeric"
+                  className="text-center tracking-[0.4em] text-lg"
+                  data-testid="totp-code"
+                />
+              </>
+            )}
+          </div>
+        )}
+
+        {step === "backup" && (
+          <div className="space-y-3 py-1">
+            <p className="text-sm font-medium text-foreground">✅ Two-factor authentication is on.</p>
+            {codes.length > 0 ? (
+              <>
+                <p className="text-sm text-muted-foreground">Save these backup codes somewhere safe — each works once if you lose your device.</p>
+                <div className="grid grid-cols-2 gap-1.5 p-3 rounded-lg bg-muted font-mono text-sm">
+                  {codes.map(c => <span key={c}>{c}</span>)}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">You can generate backup codes anytime from “Manage”.</p>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          {step === "scan" && (
+            <>
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={verify} disabled={busy || !uri}>{busy ? "Verifying…" : "Verify & enable"}</Button>
+            </>
+          )}
+          {step === "backup" && <Button onClick={onClose}>Done</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Settings() {
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
+  const [twoFAOpen, setTwoFAOpen] = useState(false);
 
   const initials = user?.firstName
     ? `${user.firstName[0]}${user.lastName?.[0] ?? ""}`.toUpperCase()
@@ -247,7 +363,12 @@ export default function Settings() {
               <Badge variant={user?.twoFactorEnabled ? "default" : "secondary"}>
                 {user?.twoFactorEnabled ? "On" : "Off"}
               </Badge>
-              <Button variant="outline" size="sm" data-testid="manage-2fa" onClick={() => openUserProfile()}>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="manage-2fa"
+                onClick={() => (user?.twoFactorEnabled ? openUserProfile() : setTwoFAOpen(true))}
+              >
                 {user?.twoFactorEnabled ? "Manage" : "Set up"}
               </Button>
             </div>
@@ -338,6 +459,8 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+
+      <TwoFactorSetup open={twoFAOpen} onClose={() => setTwoFAOpen(false)} onEnabled={() => { /* badge updates via user.reload */ }} />
     </div>
   );
 }
