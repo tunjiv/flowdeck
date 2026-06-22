@@ -1,5 +1,5 @@
 import { useUser, useClerk } from "@clerk/react";
-import { LogOut, User, Bell, Palette, Info } from "lucide-react";
+import { LogOut, User, Bell, Palette, Info, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -63,6 +63,49 @@ export default function Settings() {
               </p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Security (managed by Clerk) */}
+      <Card className="border-border">
+        <CardHeader className="pb-2 pt-4 px-5">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Shield className="w-4 h-4 text-primary" />
+            Security
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Two-factor authentication</p>
+              <p className="text-xs text-muted-foreground">
+                Authenticator app (TOTP) &amp; backup codes, with “remember this device”.
+              </p>
+            </div>
+            <Badge variant={user?.twoFactorEnabled ? "default" : "secondary"}>
+              {user?.twoFactorEnabled ? "On" : "Off"}
+            </Badge>
+          </div>
+
+          <Separator />
+
+          <div>
+            <p className="text-sm font-medium text-foreground">Active devices &amp; sessions</p>
+            <p className="text-xs text-muted-foreground">
+              Review where you’re signed in and sign out other devices.
+            </p>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            data-testid="manage-security"
+            onClick={() => openUserProfile()}
+          >
+            <Shield className="w-4 h-4 mr-2" />
+            Manage security
+          </Button>
         </CardContent>
       </Card>
 

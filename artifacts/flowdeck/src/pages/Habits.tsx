@@ -17,7 +17,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Repeat, Trash2, MoreHorizontal, ChevronDown, ChevronUp,
-  Flame, TrendingUp, BarChart2, Target,
+  Flame, TrendingUp, BarChart2, Target, Clock, CalendarDays, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,8 +33,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
-import { format, subDays, parseISO } from "date-fns";
+import {
+  format, subDays, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, isSameMonth,
+} from "date-fns";
 
 type HabitStatus = "done" | "skipped" | "missed";
 type FreqPreset = "daily" | "weekdays" | "weekly" | "monthly" | "yearly" | "custom";
@@ -96,6 +99,27 @@ function isScheduledOn(frequency: string, recurrenceConfig: string | null | unde
 
 function isScheduledToday(frequency: string, recurrenceConfig?: string | null): boolean {
   return isScheduledOn(frequency, recurrenceConfig, new Date());
+}
+
+// Scheduled days with no log, older than the 7-day row (<= today-7), after the
+// habit's start date, bounded to the last year. Ascending order.
+function computeOlderUnlogged(
+  habit: { id: number; frequency: string; recurrenceConfig?: string | null; startDate?: string | null },
+  logsByKey: Record<string, { id: number; status: string }>,
+  todayStr: string,
+): string[] {
+  const cutoff = format(subDays(parseISO(todayStr), 7), "yyyy-MM-dd");
+  const yearAgo = format(subDays(parseISO(todayStr), 365), "yyyy-MM-dd");
+  const lowerBound = habit.startDate && habit.startDate > yearAgo ? habit.startDate : yearAgo;
+  const result: string[] = [];
+  const end = parseISO(cutoff);
+  for (let d = parseISO(lowerBound); d <= end; d = addDays(d, 1)) {
+    const key = format(d, "yyyy-MM-dd");
+    if (logsByKey[`${habit.id}:${key}`]) continue;
+    if (!isScheduledOn(habit.frequency, habit.recurrenceConfig, d)) continue;
+    result.push(key);
+  }
+  return result;
 }
 
 interface RecurrenceConfig {
@@ -449,91 +473,127 @@ function HabitHeatmap({ habits, logsByKey }: {
   );
 }
 
-function CatchUpBatch({ habitName, catchUpDays, onLog, onAfter }: {
-  habitId: number;
-  habitName: string;
-  catchUpDays: string[];
-  onLog: (date: string, status: HabitStatus) => Promise<unknown>;
-  onAfter: () => void;
+// ── Day-log helpers (KAN-96) ─────────────────────────────────────────
+const STATUS_LABEL: Record<HabitStatus, string> = { done: "Done", skipped: "Skipped", missed: "Missed" };
+const STATUS_BTN: Record<HabitStatus, string> = {
+  done: "bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground",
+  skipped: "bg-muted text-muted-foreground hover:bg-foreground/10",
+  missed: "bg-red-50 dark:bg-red-900/20 text-red-600 hover:bg-red-500 hover:text-white",
+};
+
+// Popover offering Done / Skipped / Missed, anchored to a day circle/cell.
+// shadcn Popover (Radix) handles outside-click dismiss and floating positioning.
+function DayLogPopover({ disabled, children, onPick }: {
+  disabled?: boolean;
+  children: React.ReactNode;
+  onPick: (s: HabitStatus) => void;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  if (disabled) return <>{children}</>;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent align="center" sideOffset={6} className="w-auto p-1.5">
+        <div className="flex gap-1">
+          {(["done", "skipped", "missed"] as HabitStatus[]).map(s => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => { onPick(s); setOpen(false); }}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${STATUS_BTN[s]}`}
+            >
+              {STATUS_LABEL[s]}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
-  const toggleDay = (d: string) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(d)) next.delete(d); else next.add(d);
-      return next;
-    });
-  };
+type CircleKind = "unlogged" | "not-scheduled" | "future";
 
-  const selectAll = () => setSelected(new Set(catchUpDays));
-  const clearAll = () => setSelected(new Set());
-  const weekdaysOnly = () => {
-    const next = new Set<string>();
-    for (const d of catchUpDays) {
-      const dow = parseISO(d).getDay();
-      if (dow >= 1 && dow <= 5) next.add(d);
-    }
-    setSelected(next);
-  };
+// Classes + glyph for a day circle/cell, matching the mockups.
+function circleVisual(kind: CircleKind, status?: string): { cls: string; glyph: React.ReactNode } {
+  switch (status as HabitStatus | undefined) {
+    case "done": return { cls: "bg-primary text-primary-foreground border border-primary", glyph: "✓" };
+    case "skipped": return { cls: "bg-muted text-muted-foreground border border-border", glyph: "—" };
+    case "missed": return { cls: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800", glyph: "✕" };
+  }
+  if (kind === "unlogged") return { cls: "border border-dashed border-amber-400 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400", glyph: <Clock className="w-3.5 h-3.5" /> };
+  if (kind === "future") return { cls: "bg-muted/40 text-muted-foreground/50 border border-border/50", glyph: "" };
+  return { cls: "bg-muted/30 text-muted-foreground/40 border border-border/40", glyph: "" }; // not-scheduled
+}
 
-  const applyBatch = async () => {
-    if (selected.size === 0) { toast.error("Select at least one day"); return; }
-    setBusy(true);
-    try {
-      for (const d of catchUpDays) {
-        const status: HabitStatus = selected.has(d) ? "done" : "skipped";
-        await onLog(d, status);
-      }
-      toast.success(`${habitName}: ${selected.size} done, ${catchUpDays.length - selected.size} skipped`);
-      setSelected(new Set());
-      onAfter();
-    } catch {
-      toast.error("Batch update failed");
-    } finally {
-      setBusy(false);
-    }
-  };
+// Month calendar for unlogged scheduled days older than 7 days (KAN-96 Part 3).
+function MonthCatchUpCalendar({ habit, logsByKey, olderUnlogged, onLog }: {
+  habit: { id: number; frequency: string; recurrenceConfig?: string | null; startDate?: string | null };
+  logsByKey: Record<string, { id: number; status: string }>;
+  olderUnlogged: string[];
+  onLog: (date: string, status: HabitStatus) => void;
+}) {
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const cutoff = format(subDays(new Date(), 7), "yyyy-MM-dd");
+  const mostRecent = olderUnlogged[olderUnlogged.length - 1];
+  const [month, setMonth] = useState<Date>(startOfMonth(mostRecent ? parseISO(mostRecent) : new Date()));
+
+  const gridStart = startOfWeek(startOfMonth(month), { weekStartsOn: 0 });
+  const gridEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 0 });
+  const cells: Date[] = [];
+  for (let d = gridStart; d <= gridEnd; d = addDays(d, 1)) cells.push(d);
+
+  const start = habit.startDate ?? null;
+  const canGoNext = month < startOfMonth(new Date());
 
   return (
-    <div className="rounded-lg border border-border bg-muted/30 p-2.5 mb-1 space-y-2">
-      {/* Day chips for selection */}
-      <div className="flex flex-wrap gap-1">
-        {catchUpDays.map(d => {
-          const isSel = selected.has(d);
-          return (
+    <div className="rounded-lg border border-border bg-muted/20 p-3 mt-2 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+          {olderUnlogged.length} unlogged before {format(parseISO(cutoff), "MMM d")}
+        </p>
+        <div className="flex items-center gap-1">
+          <button type="button" aria-label="Previous month" onClick={() => setMonth(m => addMonths(m, -1))} className="p-1 rounded hover:bg-muted"><ChevronLeft className="w-4 h-4" /></button>
+          <span className="text-xs font-medium w-24 text-center">{format(month, "MMMM yyyy")}</span>
+          <button type="button" aria-label="Next month" disabled={!canGoNext} onClick={() => setMonth(m => addMonths(m, 1))} className="p-1 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"><ChevronRight className="w-4 h-4" /></button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <span key={i} className="text-[10px] text-muted-foreground">{d}</span>)}
+        {cells.map(d => {
+          const key = format(d, "yyyy-MM-dd");
+          const inMonth = isSameMonth(d, month);
+          const entry = logsByKey[`${habit.id}:${key}`];
+          const scheduled = isScheduledOn(habit.frequency, habit.recurrenceConfig, d);
+          const beforeStart = !!start && key < start;
+          const isFuture = key > todayStr;
+          const interactive = inMonth && scheduled && !beforeStart && !isFuture;
+          let kind: CircleKind = "not-scheduled";
+          if (scheduled && !beforeStart) kind = isFuture ? "future" : "unlogged";
+          const { cls, glyph } = circleVisual(kind, entry?.status);
+          const isTodayCell = key === todayStr;
+          const cell = (
             <button
-              key={d}
               type="button"
-              onClick={() => toggleDay(d)}
-              className={`px-2 py-1 rounded text-[10px] font-semibold transition-colors ${
-                isSel
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background border border-border text-muted-foreground hover:border-primary"
-              }`}
+              disabled={!interactive}
+              className={`aspect-square w-full rounded-md text-[11px] font-semibold flex items-center justify-center ${cls} ${!inMonth ? "opacity-30" : ""} ${isTodayCell ? "ring-1 ring-primary" : ""} ${interactive ? "cursor-pointer" : "cursor-default"}`}
             >
-              {format(parseISO(d), "EEE d")}
+              {entry?.status || (kind === "unlogged" && inMonth) ? glyph : d.getDate()}
             </button>
+          );
+          return (
+            <div key={key} title={format(d, "MMM d")}>
+              {interactive ? <DayLogPopover onPick={s => onLog(key, s)}>{cell}</DayLogPopover> : cell}
+            </div>
           );
         })}
       </div>
-      {/* Quick-select */}
-      <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-        <button type="button" onClick={selectAll} className="px-1.5 py-0.5 rounded bg-background border border-border hover:border-primary">Select all</button>
-        <button type="button" onClick={clearAll} className="px-1.5 py-0.5 rounded bg-background border border-border hover:border-primary">Clear</button>
-        <button type="button" onClick={weekdaysOnly} className="px-1.5 py-0.5 rounded bg-background border border-border hover:border-primary">Weekdays only</button>
-        <span className="text-muted-foreground ml-auto">{selected.size} selected</span>
+      <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground pt-1">
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" /> Done</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full border border-dashed border-amber-400 inline-block" /> Unlogged (click)</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-300 inline-block" /> Missed</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-muted inline-block" /> Skipped</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-muted/30 inline-block" /> Not scheduled</span>
       </div>
-      {/* Apply */}
-      <button
-        type="button"
-        onClick={applyBatch}
-        disabled={busy || selected.size === 0}
-        className="w-full py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Mark selected as done & skip the rest
-      </button>
     </div>
   );
 }
@@ -613,6 +673,36 @@ export default function Habits() {
       qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
     } catch {
       toast.error("Failed to update");
+    }
+  };
+
+  // Log/overwrite a past day (used by clickable circles, catch-up list, and calendar).
+  const logDay = async (habitId: number, date: string, status: HabitStatus) => {
+    const existing = logsByKey[`${habitId}:${date}`];
+    try {
+      if (existing) {
+        await updateLog.mutateAsync({ id: existing.id, data: { status } });
+      } else {
+        await logHabit.mutateAsync({ data: { habitId, logDate: date, status } });
+      }
+      qc.invalidateQueries({ queryKey: getListHabitLogsQueryKey() });
+      qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+    } catch {
+      toast.error("Failed to update");
+    }
+  };
+
+  const skipAllUnlogged = async (habitId: number, days: string[]) => {
+    if (days.length === 0) return;
+    try {
+      for (const d of days) {
+        await logHabit.mutateAsync({ data: { habitId, logDate: d, status: "skipped" } });
+      }
+      qc.invalidateQueries({ queryKey: getListHabitLogsQueryKey() });
+      qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+      toast.success(`Marked ${days.length} day${days.length > 1 ? "s" : ""} as skipped`);
+    } catch {
+      toast.error("Failed to skip all");
     }
   };
 
@@ -707,6 +797,7 @@ export default function Habits() {
                   (!habitStart || d >= habitStart) &&
                   isScheduledOn(habit.frequency, habit.recurrenceConfig, parseISO(d))
                 );
+                const olderUnlogged = expanded ? computeOlderUnlogged(habit, logsByKey, today) : [];
                 const linkedGoal = habit.goalId != null ? goalsById.get(habit.goalId) : undefined;
 
                 return (
@@ -821,7 +912,7 @@ export default function Habits() {
                           </div>
                         )}
 
-                        {/* Last 7 days with labels */}
+                        {/* Last 7 days — interactive circles (click to log a past day) */}
                         <div>
                           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">LAST 7 DAYS</p>
                           <div className="flex gap-2">
@@ -829,17 +920,26 @@ export default function Habits() {
                               const d = subDays(new Date(), 6 - i);
                               const key = format(d, "yyyy-MM-dd");
                               const entry = logsByKey[`${habit.id}:${key}`];
-                              const s = entry?.status;
+                              const isToday = key === today;
+                              const scheduledDay = isScheduledOn(habit.frequency, habit.recurrenceConfig, d);
+                              const beforeStart = !!habit.startDate && key < habit.startDate;
+                              const kind: CircleKind = scheduledDay && !beforeStart ? "unlogged" : "not-scheduled";
+                              const { cls, glyph } = circleVisual(kind, entry?.status);
+                              // Today is handled by the Done/Skipped/Missed button row above.
+                              const interactive = scheduledDay && !beforeStart && !isToday;
+                              const circle = (
+                                <button
+                                  type="button"
+                                  disabled={!interactive}
+                                  title={`${format(d, "EEE, MMM d")}${entry ? " — " + entry.status : kind === "unlogged" ? " — unlogged" : ""}`}
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${cls} ${isToday ? "ring-2 ring-foreground/40 ring-offset-1" : ""} ${interactive ? "cursor-pointer hover:scale-110" : "cursor-default"}`}
+                                >
+                                  {entry?.status || kind === "unlogged" ? glyph : "·"}
+                                </button>
+                              );
                               return (
                                 <div key={key} className="flex flex-col items-center gap-1">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                                    s === "done" ? "bg-primary text-primary-foreground"
-                                    : s === "skipped" ? "bg-amber-400 text-white"
-                                    : s === "missed" ? "bg-red-400 text-white"
-                                    : "bg-muted text-muted-foreground border border-border"
-                                  }`}>
-                                    {s === "done" ? "✓" : s === "skipped" ? "–" : s === "missed" ? "✗" : "·"}
-                                  </div>
+                                  {interactive ? <DayLogPopover onPick={s => logDay(habit.id, key, s)}>{circle}</DayLogPopover> : circle}
                                   <span className="text-[10px] text-muted-foreground">{format(d, "EEE")[0]}</span>
                                 </div>
                               );
@@ -847,50 +947,48 @@ export default function Habits() {
                           </div>
                         </div>
 
-                        {/* Catch-up section */}
+                        {/* Catch-up — simplified list */}
                         {catchUpDays.length > 0 && (
                           <div>
-                            <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wide mb-1.5">
-                              CATCH UP — {catchUpDays.length} unlogged day{catchUpDays.length > 1 ? "s" : ""}
-                            </p>
-                            <CatchUpBatch
-                              habitId={habit.id}
-                              habitName={habit.name}
-                              catchUpDays={catchUpDays}
-                              onLog={async (date, status) => {
-                                await logHabit.mutateAsync({ data: { habitId: habit.id, logDate: date, status } });
-                              }}
-                              onAfter={() => {
-                                qc.invalidateQueries({ queryKey: getListHabitLogsQueryKey() });
-                              }}
-                            />
-                            <div className="space-y-1 mt-2">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+                                CATCH UP — {catchUpDays.length} unlogged day{catchUpDays.length > 1 ? "s" : ""}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => skipAllUnlogged(habit.id, catchUpDays)}
+                                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                              >
+                                Skip all unlogged
+                              </button>
+                            </div>
+                            <div className="space-y-1">
                               {catchUpDays.map(d => (
                                 <div key={d} className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground w-20">{format(parseISO(d), "EEE, MMM d")}</span>
+                                  <span className="text-xs text-muted-foreground w-24">{format(parseISO(d), "EEE, MMM d")}</span>
                                   <div className="flex gap-1">
                                     {(["done", "skipped", "missed"] as HabitStatus[]).map(s => (
                                       <button
                                         key={s}
-                                        onClick={async () => {
-                                          try {
-                                            await logHabit.mutateAsync({ data: { habitId: habit.id, logDate: d, status: s } });
-                                            qc.invalidateQueries({ queryKey: getListHabitLogsQueryKey() });
-                                            toast.success(`${format(parseISO(d), "MMM d")} → ${s}`);
-                                          } catch { toast.error("Failed"); }
-                                        }}
-                                        className={`px-2 py-1 rounded text-[10px] font-semibold transition-colors capitalize ${
-                                          s === "done" ? "bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground"
-                                          : s === "skipped" ? "bg-amber-50 dark:bg-amber-900/20 text-amber-700 hover:bg-amber-500 hover:text-white"
-                                          : "bg-red-50 dark:bg-red-900/20 text-red-600 hover:bg-red-500 hover:text-white"
-                                        }`}
-                                      >{s}</button>
+                                        onClick={() => logDay(habit.id, d, s)}
+                                        className={`px-2 py-1 rounded text-[10px] font-semibold transition-colors ${STATUS_BTN[s]}`}
+                                      >{STATUS_LABEL[s]}</button>
                                     ))}
                                   </div>
                                 </div>
                               ))}
                             </div>
                           </div>
+                        )}
+
+                        {/* Older unlogged days — month calendar */}
+                        {olderUnlogged.length > 0 && (
+                          <MonthCatchUpCalendar
+                            habit={habit}
+                            logsByKey={logsByKey}
+                            olderUnlogged={olderUnlogged}
+                            onLog={(date, s) => logDay(habit.id, date, s)}
+                          />
                         )}
                       </div>
                     )}
