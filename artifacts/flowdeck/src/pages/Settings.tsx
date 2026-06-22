@@ -1,10 +1,160 @@
-import { useUser, useClerk } from "@clerk/react";
-import { LogOut, User, Bell, Palette, Info, Shield } from "lucide-react";
+import { useUser, useClerk, useSession } from "@clerk/react";
+import { useState, useEffect } from "react";
+import { LogOut, User, Bell, Palette, Info, Shield, Monitor, Smartphone, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
+
+type ClerkSession = {
+  id: string;
+  status?: string;
+  lastActiveAt?: Date | string;
+  latestActivity?: {
+    isMobile?: boolean;
+    deviceType?: string;
+    browserName?: string;
+    browserVersion?: string;
+    ipAddress?: string;
+    city?: string;
+    country?: string;
+  };
+  revoke: () => Promise<unknown>;
+};
+
+function maskIp(ip?: string): string {
+  if (!ip) return "IP unavailable";
+  if (ip.includes(".")) return ip.replace(/\.\d+$/, ".•••");      // IPv4 last octet
+  return ip.replace(/:[^:]*$/, ":•••");                            // IPv6 last group
+}
+
+// Active sessions / devices via Clerk (KAN-2).
+function ActiveSessions() {
+  const { user } = useUser();
+  const { session: current } = useSession();
+  const [sessions, setSessions] = useState<ClerkSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const list = (await user.getSessions()) as unknown as ClerkSession[];
+      setSessions(list);
+    } catch {
+      toast.error("Couldn't load sessions");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, [user?.id]);
+
+  const revokeOne = async (s: ClerkSession, isCurrent: boolean) => {
+    if (isCurrent && !window.confirm("This will log you out immediately. Continue?")) return;
+    setBusy(s.id);
+    try {
+      await s.revoke();
+      if (isCurrent) { window.location.href = "/"; return; }
+      await load();
+      toast.success("Session revoked");
+    } catch {
+      toast.error("Couldn't revoke session");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const revokeOthers = async () => {
+    const others = sessions.filter(s => s.id !== current?.id);
+    if (others.length === 0) return;
+    setBusy("others");
+    try {
+      await Promise.all(others.map(s => s.revoke()));
+      await load();
+      toast.success(`Signed out ${others.length} other device${others.length > 1 ? "s" : ""}`);
+    } catch {
+      toast.error("Couldn't revoke sessions");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const otherCount = sessions.filter(s => s.id !== current?.id).length;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div>
+          <p className="text-sm font-medium text-foreground">Active devices &amp; sessions</p>
+          <p className="text-xs text-muted-foreground">Where you’re signed in. Revoke any you don’t recognise.</p>
+        </div>
+        {otherCount > 0 && (
+          <Button variant="outline" size="sm" disabled={busy === "others"} onClick={revokeOthers} data-testid="revoke-others">
+            Revoke all others
+          </Button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading sessions…
+        </div>
+      ) : sessions.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-2">No active sessions found.</p>
+      ) : (
+        <div className="space-y-2">
+          {sessions.slice(0, 20).map(s => {
+            const isCurrent = s.id === current?.id;
+            const a = s.latestActivity ?? {};
+            const mobile = a.isMobile || a.deviceType === "mobile";
+            const browser = [a.browserName, a.browserVersion].filter(Boolean).join(" ") || "Unknown browser";
+            const loc = [a.city, a.country].filter(Boolean).join(", ") || "Location unavailable";
+            const expired = !!s.status && s.status !== "active";
+            return (
+              <div
+                key={s.id}
+                data-testid={`session-${s.id}`}
+                className={`flex items-center gap-3 rounded-lg border p-3 ${isCurrent ? "border-primary/40 bg-primary/5" : "border-border"}`}
+              >
+                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                  {mobile ? <Smartphone className="w-4 h-4 text-muted-foreground" /> : <Monitor className="w-4 h-4 text-muted-foreground" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-foreground truncate">{browser}</p>
+                    {isCurrent && <Badge variant="default" className="h-5">This device</Badge>}
+                    {expired && <Badge variant="secondary" className="h-5">Expired</Badge>}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {loc} · {maskIp(a.ipAddress)} · {s.lastActiveAt ? formatDistanceToNow(new Date(s.lastActiveAt), { addSuffix: true }) : "—"}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive flex-shrink-0"
+                  disabled={busy === s.id}
+                  onClick={() => revokeOne(s, isCurrent)}
+                  data-testid={`revoke-${s.id}`}
+                >
+                  Revoke
+                </Button>
+              </div>
+            );
+          })}
+          {sessions.length > 20 && (
+            <p className="text-xs text-muted-foreground">Showing the 20 most recent sessions.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Settings() {
   const { user } = useUser();
@@ -82,30 +232,19 @@ export default function Settings() {
                 Authenticator app (TOTP) &amp; backup codes, with “remember this device”.
               </p>
             </div>
-            <Badge variant={user?.twoFactorEnabled ? "default" : "secondary"}>
-              {user?.twoFactorEnabled ? "On" : "Off"}
-            </Badge>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Badge variant={user?.twoFactorEnabled ? "default" : "secondary"}>
+                {user?.twoFactorEnabled ? "On" : "Off"}
+              </Badge>
+              <Button variant="outline" size="sm" data-testid="manage-2fa" onClick={() => openUserProfile()}>
+                {user?.twoFactorEnabled ? "Manage" : "Set up"}
+              </Button>
+            </div>
           </div>
 
           <Separator />
 
-          <div>
-            <p className="text-sm font-medium text-foreground">Active devices &amp; sessions</p>
-            <p className="text-xs text-muted-foreground">
-              Review where you’re signed in and sign out other devices.
-            </p>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            data-testid="manage-security"
-            onClick={() => openUserProfile()}
-          >
-            <Shield className="w-4 h-4 mr-2" />
-            Manage security
-          </Button>
+          <ActiveSessions />
         </CardContent>
       </Card>
 
