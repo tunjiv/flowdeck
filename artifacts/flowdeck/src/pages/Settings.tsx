@@ -268,10 +268,63 @@ function TwoFactorSetup({ open, onClose, totp, onEnabled }: {
   );
 }
 
+// Direct "set a password" flow for passwordless (OAuth) users, so they can then
+// enable 2FA. Uses Clerk user.updatePassword via reverification when required.
+function SetPasswordDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+  const { user } = useUser();
+  const setPassword = useReverification((pwd: string) =>
+    (user as any).updatePassword({ newPassword: pwd, signOutOfOtherSessions: false }),
+  );
+  const [pwd, setPwd] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => { if (open) { setPwd(""); setConfirm(""); setError(""); } }, [open]);
+
+  const submit = async () => {
+    if (pwd.length < 8) { setError("Use at least 8 characters."); return; }
+    if (pwd !== confirm) { setError("Passwords don't match."); return; }
+    setBusy(true); setError("");
+    try {
+      await setPassword(pwd);
+      try { await (user as any).reload?.(); } catch { /* ignore */ }
+      toast.success("Password set — you can now enable 2FA.");
+      onDone();
+      onClose();
+    } catch (e: any) {
+      setError(e?.errors?.[0]?.longMessage || e?.message || "Couldn't set the password.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Set a password</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-1">
+          <p className="text-sm text-muted-foreground">
+            You sign in with Google. Add a password so you can turn on two-factor authentication.
+          </p>
+          <Input type="password" placeholder="New password" value={pwd} onChange={e => setPwd(e.target.value)} data-testid="new-password" />
+          <Input type="password" placeholder="Confirm password" value={confirm} onChange={e => setConfirm(e.target.value)} data-testid="confirm-password" />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Set password"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Settings() {
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
   const [twoFAOpen, setTwoFAOpen] = useState(false);
+  const [pwdOpen, setPwdOpen] = useState(false);
   const [totpData, setTotpData] = useState<{ uri: string; secret: string } | null>(null);
   // createTOTP is a protected action — run it through reverification first, then
   // open the QR dialog with the result (avoids stacked modals fighting for focus).
@@ -371,7 +424,7 @@ export default function Settings() {
               {user?.twoFactorEnabled ? (
                 <Button variant="outline" size="sm" data-testid="manage-2fa" onClick={() => openUserProfile()}>Manage</Button>
               ) : user?.passwordEnabled === false ? (
-                <Button variant="outline" size="sm" data-testid="set-password" onClick={() => openUserProfile()}>Set password</Button>
+                <Button variant="outline" size="sm" data-testid="set-password" onClick={() => setPwdOpen(true)}>Set password</Button>
               ) : (
                 <Button variant="outline" size="sm" data-testid="manage-2fa" onClick={() => handleSetup2FA()}>Set up</Button>
               )}
@@ -463,6 +516,8 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+
+      <SetPasswordDialog open={pwdOpen} onClose={() => setPwdOpen(false)} onDone={() => { /* passwordEnabled flips after reload */ }} />
 
       <TwoFactorSetup
         open={twoFAOpen}
