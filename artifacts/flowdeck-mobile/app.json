@@ -17,7 +17,13 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.flowdeck.mobile"
     },
-    "android": {},
+    "android": {
+      "package": "com.flowdeck.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#097386"
+      }
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -25,7 +31,7 @@
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://flowdeck-dun.vercel.app"
         }
       ],
       "expo-font",
