@@ -329,6 +329,18 @@ export default function Settings() {
   // createTOTP is a protected action — run it through reverification first, then
   // open the QR dialog with the result (avoids stacked modals fighting for focus).
   const startTotp = useReverification(() => (user as any).createTOTP());
+  const disableTotp = useReverification(() => (user as any).disableTOTP());
+
+  const handleDisable2FA = async () => {
+    if (!window.confirm("Turn off two-factor authentication?")) return;
+    try {
+      await disableTotp();
+      try { await (user as any).reload?.(); } catch { /* ignore */ }
+      toast.success("Two-factor authentication turned off.");
+    } catch (e: any) {
+      toast.error(e?.errors?.[0]?.longMessage || e?.message || "Couldn't turn off two-factor authentication.");
+    }
+  };
 
   const handleSetup2FA = async () => {
     try {
@@ -422,7 +434,7 @@ export default function Settings() {
                 {user?.twoFactorEnabled ? "On" : "Off"}
               </Badge>
               {user?.twoFactorEnabled ? (
-                <Button variant="outline" size="sm" data-testid="manage-2fa" onClick={() => openUserProfile()}>Manage</Button>
+                <Button variant="outline" size="sm" data-testid="disable-2fa" onClick={handleDisable2FA}>Turn off</Button>
               ) : user?.passwordEnabled === false ? (
                 <Button variant="outline" size="sm" data-testid="set-password" onClick={() => setPwdOpen(true)}>Set password</Button>
               ) : (
