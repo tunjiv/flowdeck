@@ -359,21 +359,22 @@ export default function Settings() {
             <div>
               <p className="text-sm font-medium text-foreground">Two-factor authentication</p>
               <p className="text-xs text-muted-foreground">
-                Authenticator app (TOTP) &amp; backup codes, with “remember this device”.
+                {user && !user.twoFactorEnabled && user.passwordEnabled === false
+                  ? "You sign in with Google. Add a password first — 2FA needs it to confirm your identity before it can be enabled."
+                  : "Authenticator app (TOTP) & backup codes, with “remember this device”."}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <Badge variant={user?.twoFactorEnabled ? "default" : "secondary"}>
                 {user?.twoFactorEnabled ? "On" : "Off"}
               </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid="manage-2fa"
-                onClick={() => (user?.twoFactorEnabled ? openUserProfile() : handleSetup2FA())}
-              >
-                {user?.twoFactorEnabled ? "Manage" : "Set up"}
-              </Button>
+              {user?.twoFactorEnabled ? (
+                <Button variant="outline" size="sm" data-testid="manage-2fa" onClick={() => openUserProfile()}>Manage</Button>
+              ) : user?.passwordEnabled === false ? (
+                <Button variant="outline" size="sm" data-testid="set-password" onClick={() => openUserProfile()}>Set password</Button>
+              ) : (
+                <Button variant="outline" size="sm" data-testid="manage-2fa" onClick={() => handleSetup2FA()}>Set up</Button>
+              )}
             </div>
           </div>
 
