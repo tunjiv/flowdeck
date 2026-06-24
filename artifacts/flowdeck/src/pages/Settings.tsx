@@ -186,9 +186,10 @@ function TwoFactorSetup({ open, onClose, totp, onEnabled }: {
   const [codes, setCodes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [backupError, setBackupError] = useState("");
 
   useEffect(() => {
-    if (open) { setStep("scan"); setCode(""); setCodes([]); setError(""); }
+    if (open) { setStep("scan"); setCode(""); setCodes([]); setError(""); setBackupError(""); }
   }, [open]);
 
   const verify = async () => {
@@ -197,7 +198,12 @@ function TwoFactorSetup({ open, onClose, totp, onEnabled }: {
     try {
       await verifyCode(code.trim());
       let bc: string[] = [];
-      try { const r: any = await makeBackupCodes(); bc = r?.codes ?? []; } catch { /* backup codes optional */ }
+      try {
+        const r: any = await makeBackupCodes();
+        bc = r?.codes ?? [];
+      } catch (e: any) {
+        setBackupError(e?.errors?.[0]?.longMessage || e?.message || "Backup codes aren't enabled for this instance.");
+      }
       setCodes(bc);
       setStep("backup");
       try { await (user as any).reload?.(); } catch { /* ignore */ }
@@ -249,7 +255,10 @@ function TwoFactorSetup({ open, onClose, totp, onEnabled }: {
                 </div>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">You can generate backup codes anytime from “Manage”.</p>
+              <p className="text-sm text-muted-foreground">
+                No backup codes were generated{backupError ? `: ${backupError}` : "."} Enable <strong>Backup codes</strong> in your
+                Clerk dashboard (User &amp; authentication → Multi-factor), then turn 2FA off and set it up again.
+              </p>
             )}
           </div>
         )}
