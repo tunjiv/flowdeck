@@ -59,3 +59,9 @@ Driven by `vercel.json`. Several pieces must stay in sync:
 - `api/package.json` (`{"type":"module"}`) and `api/tsconfig.json` (`esModuleInterop`, `noEmitOnError: false`) make `@vercel/node` compile the function correctly.
 - The Vercel **project settings** must be **Framework Preset = Other** and **Root Directory = repo root**. Vercel tends to auto-misdetect this as an Express app rooted at `artifacts/api-server`, which breaks the build.
 - Required env vars: `DATABASE_URL`, `SESSION_SECRET`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, and `VITE_CLERK_PUBLISHABLE_KEY` (the `VITE_`-prefixed one is baked in at **build** time, so it must be set before the build runs).
+
+## Current deployment (test/development)
+
+The app is deployed at **https://flowdeck-dun.vercel.app** (Vercel project `verissimo/flowdeck`), backed by a **Neon** Postgres database and a Clerk **development** instance. This is a **test environment**, not production — there is no `pk_live_` Clerk instance and secrets have not been rotated (intentionally deferred). Env vars live in the Vercel project, not the repo; pull them with `vercel env pull`. Vercel Git auto-deploy is not yet connected, so deploys are run manually with `vercel deploy --prod`.
+
+Data rows are owned by a Clerk user id in `user_id`. When the Clerk instance changes, existing user ids no longer match, so app data must be re-pointed to the new id with a SQL `UPDATE ... SET user_id = <new> WHERE user_id = <old>` across the user-scoped tables (look up the new id via the Clerk Backend API by email).
